@@ -47,11 +47,11 @@ namespace assets
         return true;
     }
 
-    bool Material::save(const std::filesystem::path &path)
+    bool Material::save(const std::filesystem::path &path, int compression)
     {
         BinStream stream{};
         if (!writeToStream(stream)) return false;
-        return saveFile(path, stream);
+        return saveFile(path, stream, compression);
     }
 
     void readTexturesFromStream(BinStream &stream, DArray<std::shared_ptr<Asset>> &textures)

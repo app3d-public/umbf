@@ -84,9 +84,10 @@ namespace assets
          * This method saves the asset to the specified file path.
          *
          * @param path The path to the destination file.
+         * @param compression The compression level to use when saving the asset.
          * @return Returns true if the save operation was successful, false otherwise.
          */
-        virtual bool save(const std::filesystem::path &path) = 0;
+        virtual bool save(const std::filesystem::path &path, int compression = 5) = 0;
 
         /**
          * @brief Writes the asset to a binary stream.
@@ -120,7 +121,7 @@ namespace assets
         InfoHeader _info;
         u32 _checksum{0};
 
-        bool saveFile(const std::filesystem::path &path, BinStream &src);
+        bool saveFile(const std::filesystem::path &path, BinStream &src, int compression);
         static bool loadFile(const std::filesystem::path &path, BinStream &dst, InfoHeader &info);
     };
 
@@ -129,9 +130,9 @@ namespace assets
     public:
         InvalidAsset() : Asset({Type::Invalid, false}) {}
 
-        virtual bool writeToStream(BinStream &stream) override { return false; }
+        virtual bool writeToStream(BinStream &) override { return false; }
 
-        virtual bool save(const std::filesystem::path &path) override { return false; }
+        virtual bool save(const std::filesystem::path &, int) override { return false; }
     };
 } // namespace assets
 

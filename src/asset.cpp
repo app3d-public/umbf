@@ -27,7 +27,7 @@ namespace assets
         }
     }
 
-    bool Asset::saveFile(const std::filesystem::path &path, BinStream &src)
+    bool Asset::saveFile(const std::filesystem::path &path, BinStream &src, int compression)
     {
         BinStream dstStream;
 
@@ -37,7 +37,7 @@ namespace assets
         if (_info.compressed)
         {
             DArray<char> compressed;
-            if (!io::file::compress(src.data() + src.pos(), src.size() - src.pos(), compressed, 5))
+            if (!io::file::compress(src.data() + src.pos(), src.size() - src.pos(), compressed, compression))
             {
                 logError("Failed to compress: %s", path.string().c_str());
                 return false;

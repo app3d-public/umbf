@@ -68,9 +68,10 @@ namespace assets
         /**
          * @brief Saves the asset to a file.
          * @param path The path to the destination file.
+         * @param compression The compression level to use when saving the asset.
          * @return Returns true if the save operation was successful, false otherwise.
          */
-        bool save(const std::filesystem::path &path) override;
+        bool save(const std::filesystem::path &path, int compression = 5) override;
 
         /**
          * @brief Writes the asset to a binary stream.

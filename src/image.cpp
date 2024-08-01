@@ -6,11 +6,11 @@
 
 namespace assets
 {
-    bool Image::save(const std::filesystem::path &path)
+    bool Image::save(const std::filesystem::path &path, int comression)
     {
         BinStream stream{};
         _streamInfo->writeToStream(stream);
-        return saveFile(path, stream);
+        return saveFile(path, stream, comression);
     }
 
     std::shared_ptr<Image> Image::readFromStream(InfoHeader &assetInfo, BinStream &stream)

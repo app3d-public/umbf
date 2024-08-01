@@ -34,9 +34,10 @@ namespace assets
         /**
          * @brief Saves the material to a specified filesystem path.
          * @param path Filesystem path to save the material.
+         * @param compression Compression level to use when saving the material.
          * @return True if the material is successfully saved, false otherwise.
          */
-        bool save(const std::filesystem::path &path) override;
+        bool save(const std::filesystem::path &path, int compression) override;
 
         /**
          * @brief Reads a Material instance from a binary stream.

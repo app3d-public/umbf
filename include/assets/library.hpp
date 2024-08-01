@@ -48,9 +48,10 @@ namespace assets
         /**
          * @brief Saves the target asset to a specified filesystem path.
          * @param path Filesystem path to save the target asset.
+         * @param compression The compression level to use when saving the target asset.
          * @return True if the target asset is successfully saved, false otherwise.
          */
-        bool save(const std::filesystem::path &path) override;
+        bool save(const std::filesystem::path &path, int compression) override;
 
         /**
          * @brief Reads a Target instance from a file.
@@ -141,9 +142,10 @@ namespace assets
         /**
          * @brief Saves the library to a specified filesystem path.
          * @param path Filesystem path to save the library.
+         * @param compression The compression level to use when saving the library.
          * @return True if the library is successfully saved, false otherwise.
          */
-        bool save(const std::filesystem::path &path) override;
+        bool save(const std::filesystem::path &path, int compression) override;
 
         /**
          * @brief Writes the library to a binary stream.

@@ -82,11 +82,11 @@ namespace assets
         return true;
     }
 
-    bool Scene::save(const std::filesystem::path &path)
+    bool Scene::save(const std::filesystem::path &path, int compression)
     {
         BinStream stream{};
         if (!writeToStream(stream)) return false;
-        return saveFile(path, stream);
+        return saveFile(path, stream, compression);
     }
 
     std::shared_ptr<Scene> Scene::readFromStream(InfoHeader &assetInfo, BinStream &stream)

@@ -51,11 +51,11 @@ namespace assets
         return std::make_shared<Target>(assetInfo, targetInfo, checksum);
     }
 
-    bool Target::save(const std::filesystem::path &path)
+    bool Target::save(const std::filesystem::path &path, int compression)
     {
         BinStream stream{};
         writeToStream(stream);
-        return saveFile(path, stream);
+        return saveFile(path, stream, compression);
     }
 
     std::shared_ptr<Target> Target::readFromFile(const std::filesystem::path &path)
@@ -96,11 +96,11 @@ namespace assets
         return true;
     }
 
-    bool Library::save(const std::filesystem::path &path)
+    bool Library::save(const std::filesystem::path &path, int compression)
     {
         BinStream stream{};
         if (!writeToStream(stream)) return false;
-        return saveFile(path, stream);
+        return saveFile(path, stream, compression);
     }
 
     bool Library::readFromStream(FileNode &node, BinStream &stream)

@@ -104,9 +104,10 @@ namespace assets
         /**
          * @brief Saves the scene to a specified filesystem path.
          * @param path Filesystem path to save the scene.
+         * @param compression Compression level to use when saving the scene.
          * @return True if the scene is successfully saved, false otherwise.
          */
-        bool save(const std::filesystem::path &path) override;
+        bool save(const std::filesystem::path &path, int compression) override;
 
         /**
          * @brief Writes the scene to a binary stream.
