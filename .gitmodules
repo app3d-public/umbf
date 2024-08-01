@@ -1,0 +1,3 @@
+[submodule "rectpack2D"]
+	path = modules/3rd-party/rectpack2D
+	url = https://github.com/TeamHypersomnia/rectpack2D.git

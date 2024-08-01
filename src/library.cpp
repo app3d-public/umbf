@@ -10,7 +10,7 @@ namespace assets
     {
         switch (_targetInfo.proto)
         {
-            case TargetProto::File:
+            case TargetInfo::Proto::File:
             {
                 if (std::filesystem::exists(cachePath) && options == std::filesystem::copy_options::skip_existing)
                     return io::file::ReadState::Cancelled;
@@ -32,10 +32,10 @@ namespace assets
 
     bool Target::writeToStream(BinStream &stream)
     {
-        u8 headerData = (static_cast<u8>(_targetInfo.type) & 0x3F) |                       // Type
-                        (static_cast<u8>(_targetInfo.compressed) << 6) |                   // Compressed
-                        (static_cast<u8>(_targetInfo.proto == TargetProto::Network) << 7); // Proto
-        stream.write(headerData).write(_targetInfo.url).write(_targetInfo.previewFile).write(_targetInfo.checksum);
+        u8 headerData = (static_cast<u8>(_targetInfo.type) & 0x3F) |                             // Type
+                        (static_cast<u8>(_targetInfo.compressed) << 6) |                         // Compressed
+                        (static_cast<u8>(_targetInfo.proto == TargetInfo::Proto::Network) << 7); // Proto
+        stream.write(headerData).write(_targetInfo.url).write(_targetInfo.checksum);
         return true;
     }
 
@@ -43,10 +43,10 @@ namespace assets
     {
         TargetInfo targetInfo;
         u8 headerData;
-        stream.read(headerData).read(targetInfo.url).read(targetInfo.previewFile).read(targetInfo.checksum);
+        stream.read(headerData).read(targetInfo.url).read(targetInfo.checksum);
         targetInfo.type = static_cast<Type>(headerData & 0x3F);                            // Type
         targetInfo.compressed = (headerData >> 6) & 0x1;                                   // Compressed
-        targetInfo.proto = (headerData & 0x80) ? TargetProto::Network : TargetProto::File; // Proto
+        targetInfo.proto = (headerData & 0x80) ? TargetInfo::Proto::Network : TargetInfo::Proto::File; // Proto
         u32 checksum = crc32(0, stream.data(), stream.size());
         return std::make_shared<Target>(assetInfo, targetInfo, checksum);
     }

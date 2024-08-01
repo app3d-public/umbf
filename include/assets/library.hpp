@@ -6,24 +6,19 @@
 namespace assets
 {
     /**
-     * @brief Enumeration representing the protocol for the target asset.
-     */
-    enum TargetProto : u8
-    {
-        Unknown, // Unknown or unspecified protocol.
-        File,    // Local repository
-        Network  // Cloud repository
-    };
-
-    /**
      * @brief Structure representing information about a target asset.
      */
     struct TargetInfo : InfoHeader
     {
-        TargetProto proto;       // Protocol type for the target.
-        std::string url;         // URL or path to the target resource.
-        std::string previewFile; // Path to a preview file for the target.
-        u32 checksum{0x0};       // Checksum for validation. A value of 0 indicates no validation.
+        // Enumeration representing the protocol for the target asset.
+        enum Proto : u8
+        {
+            Unknown, // Unknown or unspecified protocol.
+            File,    // Local repository
+            Network  // Cloud repository
+        } proto;
+        std::string url;   // URL or path to the target resource.
+        u32 checksum{0x0}; // Checksum for validation. A value of 0 indicates no validation.
     };
 
     /**
@@ -85,7 +80,8 @@ namespace assets
          * @param cachePath Path to the cache file.
          * @return True if successful, false otherwise.
          */
-        io::file::ReadState fetchToCache(const std::filesystem::path& relativeRoot, const std::filesystem::path &cachePath, std::filesystem::copy_options options);
+        io::file::ReadState fetchToCache(const std::filesystem::path &relativeRoot,
+                                         const std::filesystem::path &cachePath, std::filesystem::copy_options options);
 
     private:
         TargetInfo _targetInfo;
