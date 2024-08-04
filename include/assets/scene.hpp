@@ -5,12 +5,11 @@
 
 #ifndef APP_SIGN_DEFAULTS
     #define APP_SIGN_DEFAULTS
-    #define SIGN_APP_PART_DEFAULT    0x5828
-    #define SIGN_META_PART_EXTERNAL  0x3F84
-    #define SIGN_META_PART_MESH      0x57CC
-    #define SIGN_META_BLOCK_EXTERNAL (SIGN_APP_PART_DEFAULT << 16 | SIGN_META_PART_EXTERNAL)
-    #define SIGN_META_BLOCK_MESH     (SIGN_APP_PART_DEFAULT << 16 | SIGN_META_PART_MESH)
+    #define SIGN_APP_PART_DEFAULT 0x5828
 #endif
+
+constexpr u32 sign_meta_block_external = SIGN_APP_PART_DEFAULT << 16 | 0x3F84;
+constexpr u32 sign_meta_block_mesh = SIGN_APP_PART_DEFAULT << 16 | 0x57CC;
 
 #define META_FLAG_INVALID 0x0
 #define META_FLAG_VALID   0x1
@@ -95,8 +94,7 @@ namespace assets
          * @param materials Array of materials associated with the scene.
          */
         Scene(const InfoHeader &assetInfo, MetaInfo meta, const DArray<std::shared_ptr<Object>> &objects,
-              const DArray<std::shared_ptr<Asset>> &textures, const DArray<MaterialNode> &materials,
-              u32 checksum = 0)
+              const DArray<std::shared_ptr<Asset>> &textures, const DArray<MaterialNode> &materials, u32 checksum = 0)
             : Asset(assetInfo, checksum), meta(meta), objects(objects), textures(textures), materials(materials)
         {
         }
@@ -143,7 +141,7 @@ namespace assets
         char *data = nullptr;
         u64 dataSize = 0;
 
-        virtual const u32 signature() const { return SIGN_META_BLOCK_EXTERNAL; }
+        virtual const u32 signature() const { return sign_meta_block_external; }
 
         ~ExternalMetaBlock() { delete data; }
     };
@@ -191,6 +189,8 @@ namespace assets
         {
             DArray<VertexRef> vertices;
             glm::vec3 normal;
+            u32 startID;
+            u16 indexCount;
         };
 
         struct AABB
@@ -227,7 +227,7 @@ namespace assets
             Model model;
             DArray<bary::Vertex> barycentricVertices;
 
-            virtual const u32 signature() const { return SIGN_META_BLOCK_MESH; }
+            virtual const u32 signature() const { return sign_meta_block_mesh; }
         };
     } // namespace mesh
 } // namespace assets
