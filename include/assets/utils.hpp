@@ -145,10 +145,5 @@ namespace assets
          * destination format and channel configuration.
          */
         APPLIB_API void *convertImage(const assets::ImageInfo &image, vk::Format dstFormat, int dstChannels);
-
-        inline u32 calcMipmapLevels(u32 width, u32 height)
-        {
-            return static_cast<u32>(std::floor(std::log2(std::max(width, height)))) + 1;
-        }
     } // namespace utils
 } // namespace assets

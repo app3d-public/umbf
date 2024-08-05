@@ -35,20 +35,24 @@ namespace assets
         u8 headerData = (static_cast<u8>(_targetInfo.type) & 0x3F) |                             // Type
                         (static_cast<u8>(_targetInfo.compressed) << 6) |                         // Compressed
                         (static_cast<u8>(_targetInfo.proto == TargetInfo::Proto::Network) << 7); // Proto
-        stream.write(headerData).write(_targetInfo.url).write(_targetInfo.checksum);
+        stream.write(headerData).write(_targetInfo.url).write(_targetChecksum);
         return true;
     }
 
     std::shared_ptr<Target> Target::readFromStream(InfoHeader &assetInfo, BinStream &stream)
     {
         TargetInfo targetInfo;
+        u32 targetChecksum;
         u8 headerData;
-        stream.read(headerData).read(targetInfo.url).read(targetInfo.checksum);
-        targetInfo.type = static_cast<Type>(headerData & 0x3F);                            // Type
-        targetInfo.compressed = (headerData >> 6) & 0x1;                                   // Compressed
+        stream.read(headerData).read(targetInfo.url).read(targetChecksum);
+        targetInfo.type = static_cast<Type>(headerData & 0x3F);                                        // Type
+        targetInfo.compressed = (headerData >> 6) & 0x1;                                               // Compressed
         targetInfo.proto = (headerData & 0x80) ? TargetInfo::Proto::Network : TargetInfo::Proto::File; // Proto
         u32 checksum = crc32(0, stream.data(), stream.size());
-        return std::make_shared<Target>(assetInfo, targetInfo, checksum);
+        auto target = std::make_shared<Target>(assetInfo, targetInfo, targetChecksum, checksum);
+        if (!target) return nullptr;
+        Asset::readMeta(stream, target->meta);
+        return target;
     }
 
     bool Target::save(const std::filesystem::path &path, int compression)
@@ -89,7 +93,7 @@ namespace assets
             if (!node.isFolder)
             {
                 if (!node.asset) return false;
-                ::writeToStream(stream, node.asset->info());
+                stream.write(node.asset->info());
                 if (!node.asset->writeToStream(stream)) return false;
             }
         }
@@ -123,7 +127,7 @@ namespace assets
             if (!node.isFolder)
             {
                 InfoHeader info;
-                ::readFromStream(stream, info);
+                stream.read(info);
                 node.asset = Asset::readFromStream(info, stream);
                 if (!node.asset) return false;
             }
@@ -135,7 +139,11 @@ namespace assets
     {
         FileNode fileTree{};
         readFromStream(fileTree, stream);
-        return std::make_shared<Library>(assetInfo, fileTree, crc32(0, stream.data(), stream.size()));
+        u32 checksum = crc32(0, stream.data(), stream.size());
+        auto library = std::make_shared<Library>(assetInfo, fileTree, checksum);
+        if (!library) return nullptr;
+        Asset::readMeta(stream, library->meta);
+        return library;
     }
 
     std::shared_ptr<Library> Library::readFromFile(const std::filesystem::path &path)

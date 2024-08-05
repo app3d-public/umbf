@@ -38,9 +38,6 @@ namespace assets
 
     bool Scene::writeToStream(BinStream &stream)
     {
-        // Project info
-        stream.write(meta.info).write(meta.author).write(meta.appVersion);
-
         // Objects
         stream.write(static_cast<u16>(objects.size()));
         for (const auto &object : objects)
@@ -72,11 +69,11 @@ namespace assets
             stream.write(node.name);
             BinStream materialStream{};
             if (node.asset->writeToStream(materialStream))
-                ::writeToStream(stream, node.asset->info()).write(materialStream.data(), materialStream.size());
+                stream.write(node.asset->info()).write(materialStream.data(), materialStream.size());
             else
             {
                 InfoHeader invalid{Type::Invalid, false};
-                ::writeToStream(stream, invalid);
+                stream.write(invalid);
             }
         }
         return true;
@@ -134,9 +131,8 @@ namespace assets
         DArray<MaterialNode> materials(materialSize);
         for (auto &node : materials)
         {
-            stream.read(node.name);
             InfoHeader materialInfo;
-            ::readFromStream(stream, materialInfo);
+            stream.read(node.name).read(materialInfo);
             switch (materialInfo.type)
             {
                 case Type::Material:
@@ -151,7 +147,10 @@ namespace assets
             }
         }
         u32 checksum = crc32(0, stream.data(), stream.size());
-        return std::make_shared<Scene>(assetInfo, meta, objects, textures, materials, checksum);
+        auto scene = std::make_shared<Scene>(assetInfo, meta, objects, textures, materials, checksum);
+        if (!scene) return nullptr;
+        Asset::readMeta(stream, scene->meta);
+        return scene;
     }
 
     std::shared_ptr<Scene> Scene::readFromFile(const std::filesystem::path &path)
@@ -176,29 +175,5 @@ namespace assets
             logError("%s", e.what());
             return nullptr;
         }
-    }
-
-    /*********************************
-     **
-     ** Default metadata
-     **
-     *********************************/
-
-    Object::MetaBlock *ExternalMetaStream::readFromStream(BinStream &stream)
-    {
-        ExternalMetaBlock *block = new ExternalMetaBlock;
-        stream.read(block->dataSize);
-        block->data = new char[block->dataSize];
-        stream.read(block->data, block->dataSize);
-        return block;
-    }
-
-    void ExternalMetaStream::writeToStream(BinStream &stream, Object::MetaBlock *content)
-    {
-        auto block = (ExternalMetaBlock *)content;
-        u64 blockSize = block->dataSize + block->dataSize * sizeof(char);
-        Object::MetaHeader header(META_FLAG_VALID, content->signature(), blockSize);
-        stream.write(header.flags).write(header.signature).write(header.blockSize);
-        stream.write(block->dataSize).write(block->data, block->dataSize);
     }
 } // namespace assets

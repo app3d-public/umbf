@@ -1,6 +1,7 @@
 #pragma once
 
 #include "asset.hpp"
+#include "core/std/stream.hpp"
 
 namespace assets
 {
@@ -66,3 +67,9 @@ namespace assets
 
     void readTexturesFromStream(BinStream &stream, DArray<std::shared_ptr<Asset>> &textures);
 } // namespace assets
+
+template <>
+BinStream& BinStream::write(const assets::MaterialNode& src);
+
+template <>
+BinStream& BinStream::read(assets::MaterialNode& dst);

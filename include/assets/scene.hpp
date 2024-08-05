@@ -8,11 +8,7 @@
     #define SIGN_APP_PART_DEFAULT 0x5828
 #endif
 
-constexpr u32 sign_meta_block_external = SIGN_APP_PART_DEFAULT << 16 | 0x3F84;
 constexpr u32 sign_meta_block_mesh = SIGN_APP_PART_DEFAULT << 16 | 0x57CC;
-
-#define META_FLAG_INVALID 0x0
-#define META_FLAG_VALID   0x1
 
 namespace assets
 {
@@ -128,30 +124,6 @@ namespace assets
          * @return Shared pointer to the loaded AssetScene.
          */
         static APPLIB_API std::shared_ptr<Scene> readFromFile(const std::filesystem::path &path);
-    };
-
-    /*********************************
-    **
-    ** Default metadata
-    **
-    *********************************/
-
-    struct ExternalMetaBlock : public Object::MetaBlock
-    {
-        char *data = nullptr;
-        u64 dataSize = 0;
-
-        virtual const u32 signature() const { return sign_meta_block_external; }
-
-        ~ExternalMetaBlock() { delete data; }
-    };
-
-    class ExternalMetaStream final : public Object::MetaStream
-    {
-    public:
-        virtual Object::MetaBlock *readFromStream(BinStream &stream) override;
-
-        virtual void writeToStream(BinStream &stream, Object::MetaBlock *block) override;
     };
 
     namespace mesh

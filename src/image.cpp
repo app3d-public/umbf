@@ -35,7 +35,10 @@ namespace assets
             logError("Invalid image asset type: %s", toString(assetInfo.type).c_str());
             return nullptr;
         }
-        return std::make_shared<Image>(assetInfo, flags, streamInfo, crc32(0, stream.data(), stream.size()));
+        auto image = std::make_shared<Image>(assetInfo, flags, streamInfo, crc32(0, stream.data(), stream.size()));
+        if (!image) return nullptr;
+        Asset::readMeta(stream, image->meta);
+        return image;
     }
 
     std::shared_ptr<Image> Image::readFromFile(const std::filesystem::path &path)
@@ -45,7 +48,9 @@ namespace assets
             BinStream stream{};
             InfoHeader assetInfo;
             if (!loadFile(path, stream, assetInfo)) return nullptr;
-            return readFromStream(assetInfo, stream);
+            auto image = readFromStream(assetInfo, stream);
+            if (!image) return nullptr;
+            return image;
         }
         catch (std::exception &e)
         {
@@ -70,7 +75,6 @@ namespace assets
         u8 imageFormat;
         stream.read(reinterpret_cast<char *>(&imageFormat), sizeof(u8));
         image.imageFormat = static_cast<vk::Format>(imageFormat);
-        stream.read(image.mipLevels);
         return image;
     }
 
@@ -83,9 +87,7 @@ namespace assets
         u8 channelNamesSize = image.channelNames.size();
         stream.write(reinterpret_cast<char *>(&channelNamesSize), sizeof(u8));
         for (const auto &str : image.channelNames) stream.write(str);
-        stream.write(image.bytesPerChannel);
-        u8 imageFormat = static_cast<u8>(image.imageFormat);
-        stream.write(imageFormat).write(image.mipLevels);
+        stream.write(image.bytesPerChannel).write(static_cast<u8>(image.imageFormat));
     }
 
     bool Image2D::writeToStream(BinStream &stream)

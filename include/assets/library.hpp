@@ -17,8 +17,7 @@ namespace assets
             File,    // Local repository
             Network  // Cloud repository
         } proto;
-        std::string url;   // URL or path to the target resource.
-        u32 checksum{0x0}; // Checksum for validation. A value of 0 indicates no validation.
+        std::string url; // URL or path to the target resource.
     };
 
     /**
@@ -33,8 +32,10 @@ namespace assets
          * @brief Constructor for the Target class.
          * @param assetInfo Asset meta header
          * @param targetInfo Specific target asset information.
+         * @param targetChecksum Target asset checksum.
+         * @param checksum Asset checksum.
          */
-        Target(const InfoHeader &assetInfo, const TargetInfo &targetInfo, u32 checksum = 0)
+        Target(const InfoHeader &assetInfo, const TargetInfo &targetInfo, u32 targetChecksum, u32 checksum = 0)
             : Asset(assetInfo, checksum), _targetInfo(targetInfo)
         {
         }
@@ -43,7 +44,13 @@ namespace assets
          * @brief Retrieves the target asset information.
          * @return Reference to the TargetInfo structure.
          */
-        const TargetInfo &targetInfo() const { return _targetInfo; }
+        TargetInfo targetInfo() const { return _targetInfo; }
+
+        /**
+         * @brief Retrieves the target asset checksum.
+         * @return Target asset checksum.
+         */
+        u32 targetChecksum() const { return _targetChecksum; }
 
         /**
          * @brief Saves the target asset to a specified filesystem path.
@@ -86,6 +93,7 @@ namespace assets
 
     private:
         TargetInfo _targetInfo;
+        u32 _targetChecksum;
     };
 
     /**

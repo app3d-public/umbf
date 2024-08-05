@@ -5,9 +5,63 @@
 #include <assets/scene.hpp>
 #include <core/hash.hpp>
 #include <core/log.hpp>
+#include "core/std/stream.hpp"
 
 namespace assets
 {
+    namespace meta
+    {
+        HashMap<u32, Stream *> g_Streams;
+
+        void addStream(u32 signature, Stream *stream)
+        {
+            auto [it, inserted] = g_Streams.try_emplace(signature, stream);
+            if (!inserted)
+            {
+                logWarn("Stream 0x%08x already registered", signature);
+                delete stream;
+            }
+        }
+
+        void clearStreams()
+        {
+            for (auto &[id, stream] : g_Streams) delete stream;
+            g_Streams.clear();
+        }
+
+        Stream *getStream(u32 signature)
+        {
+            auto it = g_Streams.find(signature);
+            if (it == g_Streams.end())
+            {
+                logError("Failed to recognize meta stream signature: 0x%08x", signature);
+                return nullptr;
+            }
+            return it->second;
+        }
+
+        /*********************************
+         **
+         ** Default metadata
+         **
+         *********************************/
+
+        Block *ExternalStream::readFromStream(BinStream &stream)
+        {
+            ExternalBlock *block = new ExternalBlock;
+            stream.read(block->dataSize);
+            block->data = new char[block->dataSize];
+            stream.read(block->data, block->dataSize);
+            return block;
+        }
+
+        void ExternalStream::writeToStream(BinStream &stream, Block *content)
+        {
+            ExternalBlock *ext = static_cast<ExternalBlock *>(content);
+            stream.write(ext->dataSize).write(ext->data, ext->dataSize);
+        }
+    } // namespace meta
+
     std::string toString(Type type)
     {
         switch (type)
@@ -32,10 +86,20 @@ namespace assets
         BinStream dstStream;
 
         dstStream.write(SIGNATURE[0]).write(SIGNATURE[1]).write(SIGNATURE[2]).write(SIGNATURE[3]);
-        ::writeToStream(dstStream, _info);
+        dstStream.write(_info);
 
         if (_info.compressed)
         {
+            for (auto &block : meta)
+            {
+                meta::Stream *metaStream = meta::getStream(block->signature());
+                if (metaStream)
+                {
+                    src.write(metaStream->blockSize(block.get())).write(block->signature());
+                    metaStream->writeToStream(src, block.get());
+                }
+            }
+            src.write(0ULL);
             DArray<char> compressed;
             if (!io::file::compress(src.data() + src.pos(), src.size() - src.pos(), compressed, compression))
             {
@@ -68,8 +132,7 @@ namespace assets
                 return false;
             }
         }
-
-        ::readFromStream(sourceStream, info);
+        sourceStream.read(info);
         if (info.compressed)
         {
             DArray<char> decompressed;
@@ -120,21 +183,42 @@ namespace assets
             return nullptr;
         }
     }
+
+    void Asset::readMeta(BinStream &stream, ForwardList<std::shared_ptr<meta::Block>> &meta)
+    {
+        while (true)
+        {
+            meta::Header header;
+            stream.read(header.blockSize);
+            if (header.blockSize == 0) break;
+
+            stream.read(header.signature);
+            meta::Stream *metaStream = meta::getStream(header.signature);
+
+            if (metaStream)
+            {
+                std::shared_ptr<meta::Block> block(metaStream->readFromStream(stream));
+                if (block) meta.push_front(std::move(block));
+            }
+            else
+                stream.shift(header.blockSize);
+        }
+    }
 } // namespace assets
 
 template <>
-BinStream &writeToStream(BinStream &stream, const assets::InfoHeader &src)
+BinStream &BinStream::write(const assets::InfoHeader &src)
 {
     u8 data = (static_cast<u8>(src.type) & 0x3F) | (static_cast<u8>(src.compressed) << 6);
-    return stream.write(data);
+    return write(data);
 }
 
 template <>
-BinStream &readFromStream(BinStream &stream, assets::InfoHeader &dst)
+BinStream &BinStream::read(assets::InfoHeader &dst)
 {
     u8 data;
-    stream.read(data);
+    read(data);
     dst.type = static_cast<assets::Type>(data & 0x3F);
     dst.compressed = (data >> 6) & 0x1;
-    return stream;
+    return *this;
 }

@@ -1,8 +1,17 @@
 #pragma once
 
 #include <core/std/basic_types.hpp>
+#include <core/std/forward_list.hpp>
 #include <core/std/stream.hpp>
 #include <filesystem>
+#include <memory>
+
+#ifndef APP_SIGN_DEFAULTS
+    #define APP_SIGN_DEFAULTS
+    #define SIGN_APP_PART_DEFAULT 0x5828
+    #define META_FLAG_INVALID     0x0
+    #define META_FLAG_VALID       0x1
+#endif
 
 namespace assets
 {
@@ -50,6 +59,39 @@ namespace assets
         bool compressed;           // Indicates whether the asset data block is compressed
     };
 
+    namespace meta
+    {
+        struct Header
+        {
+            u32 signature;
+            u64 blockSize;
+        };
+        struct Block
+        {
+            virtual ~Block() = default;
+
+            virtual const u32 signature() const { return 0x0; }
+        };
+
+        class APPLIB_API Stream
+        {
+        public:
+            virtual ~Stream() = default;
+
+            virtual Block *readFromStream(BinStream &stream) = 0;
+
+            virtual void writeToStream(BinStream &stream, Block *block) = 0;
+
+            virtual u64 blockSize(meta::Block *block) const = 0;
+        };
+
+        constexpr u32 sign_block_external = SIGN_APP_PART_DEFAULT << 16 | 0x3F84;
+
+        APPLIB_API void addStream(u32 signature, Stream *stream);
+
+        APPLIB_API void clearStreams();
+    } // namespace meta
+
     /**
      * @class Asset
      * @brief Represents a generic asset.
@@ -60,6 +102,8 @@ namespace assets
     class Asset
     {
     public:
+        ForwardList<std::shared_ptr<meta::Block>> meta;
+
         /**
          * @brief Constructor for the Asset class.
          *
@@ -117,6 +161,8 @@ namespace assets
          **/
         static APPLIB_API std::shared_ptr<Asset> readFromFile(const std::filesystem::path &path);
 
+        static void readMeta(BinStream &stream, ForwardList<std::shared_ptr<meta::Block>> &meta);
+
     protected:
         InfoHeader _info;
         u32 _checksum{0};
@@ -134,10 +180,42 @@ namespace assets
 
         virtual bool save(const std::filesystem::path &, int) override { return false; }
     };
+
+    /*********************************
+     **
+     ** Default metadata
+     **
+     *********************************/
+    namespace meta
+    {
+        struct ExternalBlock : public meta::Block
+        {
+            char *data = nullptr;
+            u64 dataSize = 0;
+
+            virtual const u32 signature() const { return sign_block_external; }
+
+            ~ExternalBlock() { delete data; }
+        };
+
+        class APPLIB_API ExternalStream final : public meta::Stream
+        {
+        public:
+            virtual meta::Block *readFromStream(BinStream &stream) override;
+
+            virtual void writeToStream(BinStream &stream, meta::Block *block) override;
+
+            virtual u64 blockSize(meta::Block *block) const override
+            {
+                ExternalBlock *ext = static_cast<ExternalBlock *>(block);
+                return ext->dataSize + ext->dataSize * sizeof(char);
+            }
+        };
+    } // namespace meta
 } // namespace assets
 
 template <>
-BinStream &writeToStream(BinStream &stream, const assets::InfoHeader &src);
+BinStream &BinStream::write(const assets::InfoHeader &src);
 
 template <>
-BinStream &readFromStream(BinStream &stream, assets::InfoHeader &dst);
+BinStream &BinStream::read(assets::InfoHeader &dst);

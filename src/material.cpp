@@ -5,21 +5,20 @@
 #include <core/log.hpp>
 
 template <>
-BinStream &writeToStream(BinStream &stream, const assets::MaterialNode &src)
+BinStream &BinStream::write(const assets::MaterialNode &src)
 {
     u16 data = src.textured ? ((1 << 15) | (src.textureID & 0x7FFF)) : 0;
-    stream.write(src.rgb).write(data);
-    return stream;
+    return write(src.rgb).write(data);
 }
 
 template <>
-BinStream &readFromStream(BinStream &stream, assets::MaterialNode &dst)
+BinStream &BinStream::read(assets::MaterialNode &dst)
 {
     u16 data;
-    stream.read(dst.rgb).read(data);
+    read(dst.rgb).read(data);
     dst.textured = data >> 15;
     dst.textureID = dst.textured ? (data & 0x7FFF) : 0;
-    return stream;
+    return *this;
 }
 
 namespace assets
@@ -31,11 +30,11 @@ namespace assets
         {
             BinStream textureStream{};
             if (texture->writeToStream(textureStream))
-                ::writeToStream(stream, texture->info()).write(textureStream.data(), textureStream.size());
+                stream.write(texture->info()).write(textureStream.data(), textureStream.size());
             else
             {
                 InfoHeader invalid{Type::Invalid, false};
-                ::writeToStream(stream, invalid);
+                stream.write(invalid);
             }
         }
     }
@@ -43,7 +42,7 @@ namespace assets
     bool Material::writeToStream(BinStream &stream)
     {
         writeTexturesToStream(stream, textures);
-        ::writeToStream(stream, info.albedo);
+        stream.write(info);
         return true;
     }
 
@@ -62,7 +61,7 @@ namespace assets
         for (auto &asset : textures)
         {
             InfoHeader textureInfo;
-            ::readFromStream(stream, textureInfo);
+            stream.read(textureInfo);
             switch (textureInfo.type)
             {
                 case Type::Image:
@@ -83,9 +82,12 @@ namespace assets
         DArray<std::shared_ptr<Asset>> textures;
         readTexturesFromStream(stream, textures);
         MaterialInfo material;
-        ::readFromStream(stream, material.albedo);
+        stream.read(material.albedo);
         u32 checksum = crc32(0, stream.data(), stream.size());
-        return std::make_shared<Material>(assetInfo, textures, material, checksum);
+        auto asset = std::make_shared<Material>(assetInfo, textures, material, checksum);
+        if (!asset) return nullptr;
+        Asset::readMeta(stream, asset->meta);
+        return asset;
     }
 
     std::shared_ptr<Material> Material::readFromFile(const std::filesystem::path &path)

@@ -17,7 +17,6 @@ namespace assets
         u16 bytesPerChannel;
         void *pixels{nullptr};
         vk::Format imageFormat;
-        u32 mipLevels;
 
         vk::DeviceSize imageSize() const { return width * height * bytesPerChannel * channelCount; }
     };
