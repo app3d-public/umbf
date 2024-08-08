@@ -35,7 +35,7 @@ namespace assets
         u8 headerData = (static_cast<u8>(_targetInfo.type) & 0x3F) |                             // Type
                         (static_cast<u8>(_targetInfo.compressed) << 6) |                         // Compressed
                         (static_cast<u8>(_targetInfo.proto == TargetInfo::Proto::Network) << 7); // Proto
-        stream.write(headerData).write(_targetInfo.url).write(_targetChecksum);
+        stream.write(headerData).write(_targetInfo.url).write(_targetChecksum).write(meta);
         return true;
     }
 
@@ -51,7 +51,7 @@ namespace assets
         u32 checksum = crc32(0, stream.data(), stream.size());
         auto target = std::make_shared<Target>(assetInfo, targetInfo, targetChecksum, checksum);
         if (!target) return nullptr;
-        Asset::readMeta(stream, target->meta);
+        stream.read(target->meta);
         return target;
     }
 
@@ -142,7 +142,7 @@ namespace assets
         u32 checksum = crc32(0, stream.data(), stream.size());
         auto library = std::make_shared<Library>(assetInfo, fileTree, checksum);
         if (!library) return nullptr;
-        Asset::readMeta(stream, library->meta);
+        stream.read(library->meta);
         return library;
     }
 

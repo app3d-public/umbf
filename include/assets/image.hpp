@@ -70,14 +70,23 @@ namespace assets
          * @param compression The compression level to use when saving the asset.
          * @return Returns true if the save operation was successful, false otherwise.
          */
-        bool save(const std::filesystem::path &path, int compression = 5) override;
+        virtual bool save(const std::filesystem::path &path, int compression = 5) override
+        {
+            BinStream stream{};
+            return writeToStream(stream) && saveFile(path, stream, compression);
+        }
 
         /**
          * @brief Writes the asset to a binary stream.
          * @param stream The binary stream to which the asset will be written.
          * @return Returns true if the write operation was successful, false otherwise.
          **/
-        bool writeToStream(BinStream &stream) override { return _streamInfo->writeToStream(stream); }
+        virtual bool writeToStream(BinStream &stream) override
+        {
+            if (!_streamInfo->writeToStream(stream)) return false;
+            stream.write(meta);
+            return true;
+        }
 
         /**
          * @brief Reads a Texture instance from a binary stream.

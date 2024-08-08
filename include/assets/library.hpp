@@ -160,7 +160,12 @@ namespace assets
          * @param stream Binary stream to write to.
          * @return True if successful, false otherwise.
          */
-        bool writeToStream(BinStream &stream) override { return writeToStream(_fileTree, stream); }
+        bool writeToStream(BinStream &stream) override
+        {
+            if (!writeToStream(_fileTree, stream)) return false;
+            stream.write(meta);
+            return true;
+        }
 
         /**
          * @brief Reads a Library instance from a binary stream.

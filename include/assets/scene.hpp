@@ -3,13 +3,6 @@
 #include <core/std/enum.hpp>
 #include "asset.hpp"
 
-#ifndef APP_SIGN_DEFAULTS
-    #define APP_SIGN_DEFAULTS
-    #define SIGN_APP_PART_DEFAULT 0x5828
-#endif
-
-constexpr u32 sign_meta_block_mesh = SIGN_APP_PART_DEFAULT << 16 | 0x57CC;
-
 namespace assets
 {
     struct Object
@@ -22,40 +15,10 @@ namespace assets
         } transform;
 
         i32 matID = -1;
-
-        struct MetaBlock
-        {
-            virtual ~MetaBlock() = default;
-
-            virtual const u32 signature() const { return 0x0; }
-        } *meta = nullptr;
+        meta::Block *meta = nullptr;
 
         ~Object() { delete meta; }
-
-        struct MetaHeader;
-        class MetaStream;
     };
-
-    struct Object::MetaHeader
-    {
-        u8 flags;
-        u32 signature;
-        u64 blockSize;
-    };
-
-    class Object::MetaStream
-    {
-    public:
-        virtual ~MetaStream() = default;
-
-        virtual Object::MetaBlock *readFromStream(BinStream &stream) = 0;
-
-        virtual void writeToStream(BinStream &stream, Object::MetaBlock *block) = 0;
-    };
-
-    APPLIB_API void addObjectMetaStream(u32 signature, Object::MetaStream *stream);
-
-    APPLIB_API void clearMetaStreams();
 
     /**
      * @brief Class representing a scene asset.
@@ -64,13 +27,6 @@ namespace assets
     class APPLIB_API Scene final : public Asset
     {
     public:
-        struct MetaInfo
-        {
-            std::string author = "";
-            std::string info = "";
-            u32 appVersion = 0x0;
-        } meta;
-
         struct MaterialNode
         {
             std::string name;
@@ -84,14 +40,13 @@ namespace assets
         /**
          * @brief Constructor for the AssetScene class.
          * @param assetInfo Information about the asset.
-         * @param meta Information about the scene.
          * @param objects Array of objects associated with the scene.
          * @param textures Array of textures associated with the scene.
          * @param materials Array of materials associated with the scene.
          */
-        Scene(const InfoHeader &assetInfo, MetaInfo meta, const DArray<std::shared_ptr<Object>> &objects,
+        Scene(const InfoHeader &assetInfo, const DArray<std::shared_ptr<Object>> &objects,
               const DArray<std::shared_ptr<Asset>> &textures, const DArray<MaterialNode> &materials, u32 checksum = 0)
-            : Asset(assetInfo, checksum), meta(meta), objects(objects), textures(textures), materials(materials)
+            : Asset(assetInfo, checksum), objects(objects), textures(textures), materials(materials)
         {
         }
 
@@ -126,80 +81,142 @@ namespace assets
         static APPLIB_API std::shared_ptr<Scene> readFromFile(const std::filesystem::path &path);
     };
 
-    namespace mesh
+    /*********************************
+     **
+     ** Default metadata
+     **
+     *********************************/
+
+    namespace meta
     {
-        struct Vertex
+        constexpr u32 sign_block_scene = SIGN_APP_PART_DEFAULT << 16 | 0xA9FD;
+        constexpr u32 sign_block_mesh = SIGN_APP_PART_DEFAULT << 16 | 0x57CC;
+
+        struct SceneInfo : public Block
         {
-            /// @brief Position
-            glm::vec3 pos{0.0f, 0.0f, 0.0f};
+            std::string author;
+            std::string info;
+            u32 version;
 
-            /// @brief UV coordinates
-            glm::vec2 uv{0.0f, 0.0f};
-
-            /// @brief Normal
-            glm::vec3 normal{0.0f, 0.0f, 0.0f};
-
-            bool operator==(const Vertex &other) const
-            {
-                return pos == other.pos && uv == other.uv && normal == other.normal;
-            }
+            virtual const u32 signature() const { return sign_block_scene; }
         };
 
-        struct VertexRef
+        class APPLIB_API SceneInfoStream final : public Stream
         {
-            u32 vertexGroup;
-            u32 vertex;
+        public:
+            virtual meta::Block *readFromStream(BinStream &stream) override;
+
+            virtual void writeToStream(BinStream &stream, meta::Block *block) override;
         };
 
-        struct VertexGroup
+        namespace mesh
         {
-            DArray<u32> vertices;
-            DArray<u32> faces;
-        };
-
-        struct Face
-        {
-            DArray<VertexRef> vertices;
-            glm::vec3 normal;
-            u32 startID;
-            u16 indexCount;
-        };
-
-        struct AABB
-        {
-            alignas(16) glm::vec3 min = glm::vec3(std::numeric_limits<f32>::max());
-            alignas(16) glm::vec3 max = glm::vec3(std::numeric_limits<f32>::lowest());
-        };
-
-        struct Model
-        {
-            DArray<Vertex> vertices;
-            DArray<VertexGroup> vertexGroups;
-            DArray<Face> faces;
-            DArray<u32> indices;
-            AABB aabb;
-        };
-
-        namespace bary
-        {
+            /// Representation of a unique vertex per vertex attributes - Position, UV coordinates, Normals, etc.
             struct Vertex
             {
+                /// @brief Position
                 glm::vec3 pos{0.0f, 0.0f, 0.0f};
-                glm::vec3 barycentric{0.0f, 0.0f, 0.0f};
+
+                /// @brief UV coordinates
+                glm::vec2 uv{0.0f, 0.0f};
+
+                /// @brief Normal
+                glm::vec3 normal{0.0f, 0.0f, 0.0f};
 
                 bool operator==(const Vertex &other) const
                 {
-                    return pos == other.pos && barycentric == other.barycentric;
+                    return pos == other.pos && uv == other.uv && normal == other.normal;
                 }
             };
-        }; // namespace bary
 
-        struct MeshBlock : public Object::MetaBlock
-        {
-            Model model;
-            DArray<bary::Vertex> barycentricVertices;
+            /**
+             * @brief Represents a reference to a vertex within a group. The group index refers to a vertex group,
+             * and the vertex index refers to a specific vertex within that group.
+             */
+            struct VertexRef
+            {
+                u32 group;  ///< Index of the vertex group.
+                u32 vertex; ///< Index of the specific vertex within the entire vertex buffer
+            };
 
-            virtual const u32 signature() const { return sign_meta_block_mesh; }
-        };
-    } // namespace mesh
+            // Represents a group of vertices.
+            struct VertexGroup
+            {
+                DArray<u32> vertices; ///< List of indices pointing to vertices in this group.
+                DArray<u32> faces;    ///< List of indices of faces that reference these vertices.
+            };
+
+            // Represents a polygon face.
+            struct Face
+            {
+                DArray<VertexRef> vertices; ///< List of vertex references that define the face.
+                glm::vec3 normal;           ///< The normal vector of the face
+                u32 startID;                ///< Starting index in the index buffer for this face.
+                u16 indexCount;             ///< Number of indices that define this face.
+            };
+
+            // Represents an axis-aligned bounding box.
+            struct AABB
+            {
+                alignas(16) glm::vec3 min = glm::vec3(std::numeric_limits<f32>::max());
+                alignas(16) glm::vec3 max = glm::vec3(std::numeric_limits<f32>::lowest());
+            };
+
+            // Represents a 3D mesh model.
+            struct Model
+            {
+                DArray<Vertex> vertices;          ///< Array containing all vertices of the model.
+                DArray<VertexGroup> vertexGroups; ///< Array containing groups of vertices.
+                DArray<Face> faces;               ///< Array of faces that make up the model.
+                DArray<u32> indices;              ///< Array of indices for rendering the model.
+                AABB aabb;                        ///< Axis-aligned bounding box that encloses the model.
+            };
+
+            namespace bary
+            {
+                // Represents a vertex with barycentric coordinates.
+                struct Vertex
+                {
+                    glm::vec3 pos{0.0f, 0.0f, 0.0f};         ///< The position of the vertex.
+                    glm::vec3 barycentric{0.0f, 0.0f, 0.0f}; ///< The barycentric coordinates of the vertex.
+
+                    bool operator==(const Vertex &other) const
+                    {
+                        return pos == other.pos && barycentric == other.barycentric;
+                    }
+                };
+            }; // namespace bary
+
+            // Represents a block of mesh data.
+            struct MeshBlock : public Block
+            {
+                Model model;                       ///< The 3D model data contained in this mesh block.
+                DArray<bary::Vertex> baryVertices; ///< Array of vertices with barycentric coordinates.
+
+                /**
+                 * @brief Returns the signature of the block.
+                 * @return The signature of the block.
+                 */
+                virtual const u32 signature() const { return sign_block_mesh; }
+            };
+            // Stream class for reading and writing mesh data.
+            class APPLIB_API MeshStream : public Stream
+            {
+            public:
+                /**
+                 * @brief Reads a block from the binary stream.
+                 * @param stream The binary stream to read from.
+                 * @return A pointer to the read block.
+                 */
+                virtual meta::Block *readFromStream(BinStream &stream) override;
+
+                /**
+                 * @brief Writes a block to the binary stream.
+                 * @param stream The binary stream to write to.
+                 * @param block The block to write.
+                 */
+                virtual void writeToStream(BinStream &stream, meta::Block *block) override;
+            };
+        } // namespace mesh
+    } // namespace meta
 } // namespace assets

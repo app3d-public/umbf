@@ -6,13 +6,6 @@
 
 namespace assets
 {
-    bool Image::save(const std::filesystem::path &path, int comression)
-    {
-        BinStream stream{};
-        _streamInfo->writeToStream(stream);
-        return saveFile(path, stream, comression);
-    }
-
     std::shared_ptr<Image> Image::readFromStream(InfoHeader &assetInfo, BinStream &stream)
     {
         std::shared_ptr<ImageStream> streamInfo;
@@ -37,7 +30,7 @@ namespace assets
         }
         auto image = std::make_shared<Image>(assetInfo, flags, streamInfo, crc32(0, stream.data(), stream.size()));
         if (!image) return nullptr;
-        Asset::readMeta(stream, image->meta);
+        stream.read(image->meta);
         return image;
     }
 

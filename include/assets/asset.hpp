@@ -9,8 +9,6 @@
 #ifndef APP_SIGN_DEFAULTS
     #define APP_SIGN_DEFAULTS
     #define SIGN_APP_PART_DEFAULT 0x5828
-    #define META_FLAG_INVALID     0x0
-    #define META_FLAG_VALID       0x1
 #endif
 
 namespace assets
@@ -81,8 +79,6 @@ namespace assets
             virtual Block *readFromStream(BinStream &stream) = 0;
 
             virtual void writeToStream(BinStream &stream, Block *block) = 0;
-
-            virtual u64 blockSize(meta::Block *block) const = 0;
         };
 
         constexpr u32 sign_block_external = SIGN_APP_PART_DEFAULT << 16 | 0x3F84;
@@ -90,6 +86,8 @@ namespace assets
         APPLIB_API void addStream(u32 signature, Stream *stream);
 
         APPLIB_API void clearStreams();
+
+        APPLIB_API Stream *getStream(u32 signature);
     } // namespace meta
 
     /**
@@ -99,7 +97,7 @@ namespace assets
      * The Asset class is an abstract base class designed to represent and manage various types of assets.
      * It provides functionalities for saving and loading assets from files and streams.
      */
-    class Asset
+    class APPLIB_API Asset
     {
     public:
         ForwardList<std::shared_ptr<meta::Block>> meta;
@@ -161,8 +159,6 @@ namespace assets
          **/
         static APPLIB_API std::shared_ptr<Asset> readFromFile(const std::filesystem::path &path);
 
-        static void readMeta(BinStream &stream, ForwardList<std::shared_ptr<meta::Block>> &meta);
-
     protected:
         InfoHeader _info;
         u32 _checksum{0};
@@ -204,18 +200,18 @@ namespace assets
             virtual meta::Block *readFromStream(BinStream &stream) override;
 
             virtual void writeToStream(BinStream &stream, meta::Block *block) override;
-
-            virtual u64 blockSize(meta::Block *block) const override
-            {
-                ExternalBlock *ext = static_cast<ExternalBlock *>(block);
-                return ext->dataSize + ext->dataSize * sizeof(char);
-            }
         };
     } // namespace meta
 } // namespace assets
 
 template <>
-BinStream &BinStream::write(const assets::InfoHeader &src);
+APPLIB_API BinStream &BinStream::write(const assets::InfoHeader &src);
 
 template <>
-BinStream &BinStream::read(assets::InfoHeader &dst);
+APPLIB_API BinStream &BinStream::read(assets::InfoHeader &dst);
+
+template<>
+APPLIB_API BinStream& BinStream::write(const ForwardList<std::shared_ptr<assets::meta::Block>>& meta);
+
+template<>
+APPLIB_API BinStream& BinStream::read(ForwardList<std::shared_ptr<assets::meta::Block>>& meta);

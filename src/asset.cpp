@@ -5,7 +5,6 @@
 #include <assets/scene.hpp>
 #include <core/hash.hpp>
 #include <core/log.hpp>
-#include "core/std/stream.hpp"
 
 namespace assets
 {
@@ -90,16 +89,6 @@ namespace assets
 
         if (_info.compressed)
         {
-            for (auto &block : meta)
-            {
-                meta::Stream *metaStream = meta::getStream(block->signature());
-                if (metaStream)
-                {
-                    src.write(metaStream->blockSize(block.get())).write(block->signature());
-                    metaStream->writeToStream(src, block.get());
-                }
-            }
-            src.write(0ULL);
             DArray<char> compressed;
             if (!io::file::compress(src.data() + src.pos(), src.size() - src.pos(), compressed, compression))
             {
@@ -183,27 +172,6 @@ namespace assets
             return nullptr;
         }
     }
-
-    void Asset::readMeta(BinStream &stream, ForwardList<std::shared_ptr<meta::Block>> &meta)
-    {
-        while (true)
-        {
-            meta::Header header;
-            stream.read(header.blockSize);
-            if (header.blockSize == 0) break;
-
-            stream.read(header.signature);
-            meta::Stream *metaStream = meta::getStream(header.signature);
-
-            if (metaStream)
-            {
-                std::shared_ptr<meta::Block> block(metaStream->readFromStream(stream));
-                if (block) meta.push_front(std::move(block));
-            }
-            else
-                stream.shift(header.blockSize);
-        }
-    }
 } // namespace assets
 
 template <>
@@ -220,5 +188,44 @@ BinStream &BinStream::read(assets::InfoHeader &dst)
     read(data);
     dst.type = static_cast<assets::Type>(data & 0x3F);
     dst.compressed = (data >> 6) & 0x1;
+    return *this;
+}
+
+template <>
+BinStream &BinStream::write(const ForwardList<std::shared_ptr<assets::meta::Block>> &meta)
+{
+    for (auto &block : meta)
+    {
+        auto *metaStream = assets::meta::getStream(block->signature());
+        if (metaStream)
+        {
+            BinStream tmp{};
+            metaStream->writeToStream(tmp, block.get());
+            u64 blockSize = tmp.size();
+            write(blockSize).write(block->signature()).write(tmp.data(), blockSize);
+        }
+    }
+    return write(0ULL);
+}
+template <>
+BinStream &BinStream::read(ForwardList<std::shared_ptr<assets::meta::Block>> &meta)
+{
+    while (true)
+    {
+        assets::meta::Header header;
+        read(header.blockSize);
+        if (header.blockSize == 0) break;
+
+        read(header.signature);
+        auto *metaStream = assets::meta::getStream(header.signature);
+
+        if (metaStream)
+        {
+            std::shared_ptr<assets::meta::Block> block(metaStream->readFromStream(*this));
+            if (block) meta.push_front(std::move(block));
+        }
+        else
+            shift(header.blockSize);
+    }
     return *this;
 }

@@ -42,7 +42,7 @@ namespace assets
     bool Material::writeToStream(BinStream &stream)
     {
         writeTexturesToStream(stream, textures);
-        stream.write(info);
+        stream.write(info.albedo).write(meta);
         return true;
     }
 
@@ -86,7 +86,7 @@ namespace assets
         u32 checksum = crc32(0, stream.data(), stream.size());
         auto asset = std::make_shared<Material>(assetInfo, textures, material, checksum);
         if (!asset) return nullptr;
-        Asset::readMeta(stream, asset->meta);
+        stream.read(asset->meta);
         return asset;
     }
 
@@ -96,12 +96,8 @@ namespace assets
         {
             BinStream stream{};
             InfoHeader assetInfo;
-            if (!loadFile(path, stream, assetInfo)) return nullptr;
-
-            if (assetInfo.type == Type::Material)
-                return readFromStream(assetInfo, stream);
-            else
-                return nullptr;
+            if (!loadFile(path, stream, assetInfo) || assetInfo.type != Type::Material) return nullptr;
+            return readFromStream(assetInfo, stream);
         }
         catch (std::exception &e)
         {
