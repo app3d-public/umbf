@@ -83,10 +83,7 @@ namespace assets
     bool Asset::saveFile(const std::filesystem::path &path, BinStream &src, int compression)
     {
         BinStream dstStream;
-
-        dstStream.write(SIGNATURE[0]).write(SIGNATURE[1]).write(SIGNATURE[2]).write(SIGNATURE[3]);
-        dstStream.write(_info);
-
+        dstStream.write(sign_format_assets).write(_info);
         if (_info.compressed)
         {
             DArray<char> compressed;
@@ -110,16 +107,12 @@ namespace assets
         if (io::file::readBinary(path.string(), source) != io::file::ReadState::Success) return false;
 
         BinStream sourceStream(std::move(source));
-
-        for (int i = 0; i < 4; i++)
+        u32 sign_file_format;
+        sourceStream.read(sign_file_format);
+        if (sign_file_format != sign_format_assets)
         {
-            u8 byte;
-            sourceStream.read(byte);
-            if (byte != SIGNATURE[i])
-            {
-                logError("Invalid file signature");
-                return false;
-            }
+            logError("Invalid file signature");
+            return false;
         }
         sourceStream.read(info);
         if (info.compressed)

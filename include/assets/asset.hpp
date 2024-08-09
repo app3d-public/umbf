@@ -14,7 +14,7 @@
 namespace assets
 {
     // The file signature of the asset file format
-    constexpr u8 SIGNATURE[4] = {0xFF, 0xBE, 0xCF, 0xB8};
+    constexpr u32 sign_format_assets = 0xFFBECFB8;
 
     /**
      * @enum Type
