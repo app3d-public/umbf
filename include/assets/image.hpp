@@ -23,11 +23,11 @@ namespace assets
 
     enum class ImageTypeFlagBits
     {
-        tUndefined = 0x0,
-        t2D = 0x1,
-        tAtlas = 0x2,
-        t3D = 0x4,
-        tGenerated = 0x8
+        undefined = 0x0, //< Undefined
+        image2D = 0x1,   //< 2D image
+        atlas = 0x2,     //< Atlas image
+        image3D = 0x4,   //< 3D image
+        external = 0x8   //< The image was loaded from an external source
     };
 
     using ImageTypeFlags = Flags<ImageTypeFlagBits>;
@@ -180,6 +180,6 @@ struct FlagTraits<assets::ImageTypeFlagBits>
 {
     static constexpr bool isBitmask = true;
     static constexpr assets::ImageTypeFlags allFlags =
-        assets::ImageTypeFlagBits::tUndefined | assets::ImageTypeFlagBits::t2D | assets::ImageTypeFlagBits::t3D |
-        assets::ImageTypeFlagBits::tAtlas | assets::ImageTypeFlagBits::tGenerated;
+        assets::ImageTypeFlagBits::undefined | assets::ImageTypeFlagBits::image2D | assets::ImageTypeFlagBits::image3D |
+        assets::ImageTypeFlagBits::atlas | assets::ImageTypeFlagBits::external;
 };

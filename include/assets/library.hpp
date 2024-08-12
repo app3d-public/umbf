@@ -197,7 +197,7 @@ namespace assets
      * traversal of the libraries and ensures streamlined integration with the underlying system through
      * its initialization method.
      */
-    class Manager
+    class APPLIB_API Manager
     {
     public:
         using iterator = HashMap<std::string, std::shared_ptr<Library>>::iterator;

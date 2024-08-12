@@ -38,12 +38,11 @@ namespace assets
 
         // Materials
         stream.write(static_cast<u16>(materials.size()));
-        for (auto &node : materials)
+        for (auto &mat : materials)
         {
-            stream.write(node.name);
             BinStream materialStream{};
-            if (node.asset->writeToStream(materialStream))
-                stream.write(node.asset->info()).write(materialStream.data(), materialStream.size());
+            if (mat->writeToStream(materialStream))
+                stream.write(mat->info()).write(materialStream.data(), materialStream.size());
             else
             {
                 InfoHeader invalid{Type::Invalid, false};
@@ -99,21 +98,21 @@ namespace assets
         u16 materialSize;
         stream.read(materialSize);
 
-        DArray<MaterialNode> materials(materialSize);
-        for (auto &node : materials)
+        DArray<std::shared_ptr<Asset>> materials(materialSize);
+        for (auto &mat : materials)
         {
             InfoHeader materialInfo;
-            stream.read(node.name).read(materialInfo);
+            stream.read(materialInfo);
             switch (materialInfo.type)
             {
                 case Type::Material:
-                    if (auto material = Material::readFromStream(materialInfo, stream)) node.asset = material;
+                    if (auto material = Material::readFromStream(materialInfo, stream)) mat = material;
                     break;
                 case Type::Target:
-                    if (auto target = Target::readFromStream(materialInfo, stream)) node.asset = target;
+                    if (auto target = Target::readFromStream(materialInfo, stream)) mat = target;
                     break;
                 default:
-                    node.asset = std::make_shared<InvalidAsset>();
+                    mat = std::make_shared<InvalidAsset>();
                     break;
             }
         }

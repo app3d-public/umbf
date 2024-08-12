@@ -13,9 +13,9 @@ namespace assets
         stream.read(flags);
         if (assetInfo.type == Type::Image)
         {
-            if (flags & ImageTypeFlagBits::tAtlas)
+            if (flags & ImageTypeFlagBits::atlas)
                 streamInfo = Atlas::readFromStream(stream);
-            else if (flags & ImageTypeFlagBits::t2D)
+            else if (flags & ImageTypeFlagBits::image2D)
                 streamInfo = Image2D::readFromStream(stream);
             else
             {
@@ -85,7 +85,7 @@ namespace assets
 
     bool Image2D::writeToStream(BinStream &stream)
     {
-        writeBodyToStream(stream, *this, ImageTypeFlagBits::t2D);
+        writeBodyToStream(stream, *this, ImageTypeFlagBits::image2D);
         if (!pixels)
         {
             logWarn("Pixels cannot be null");
@@ -106,7 +106,7 @@ namespace assets
 
     bool Atlas::writeToStream(BinStream &stream)
     {
-        writeBodyToStream(stream, *this, ImageTypeFlagBits::t2D | ImageTypeFlagBits::tAtlas);
+        writeBodyToStream(stream, *this, ImageTypeFlagBits::image2D | ImageTypeFlagBits::atlas);
         stream.write(_discardStep).write(static_cast<u16>(_packData.size()));
         utils::fillColorPixels(glm::vec4(0.0f), *this);
         for (size_t i = 0; i < _packData.size(); i++)

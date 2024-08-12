@@ -27,15 +27,9 @@ namespace assets
     class APPLIB_API Scene final : public Asset
     {
     public:
-        struct MaterialNode
-        {
-            std::string name;
-            std::shared_ptr<Asset> asset;
-        };
-
         DArray<std::shared_ptr<Object>> objects;
         DArray<std::shared_ptr<Asset>> textures;
-        DArray<MaterialNode> materials;
+        DArray<std::shared_ptr<Asset>> materials;
 
         /**
          * @brief Constructor for the AssetScene class.
@@ -45,7 +39,8 @@ namespace assets
          * @param materials Array of materials associated with the scene.
          */
         Scene(const InfoHeader &assetInfo, const DArray<std::shared_ptr<Object>> &objects,
-              const DArray<std::shared_ptr<Asset>> &textures, const DArray<MaterialNode> &materials, u32 checksum = 0)
+              const DArray<std::shared_ptr<Asset>> &textures, const DArray<std::shared_ptr<Asset>> &materials,
+              u32 checksum = 0)
             : Asset(assetInfo, checksum), objects(objects), textures(textures), materials(materials)
         {
         }
@@ -91,6 +86,7 @@ namespace assets
     {
         constexpr u32 sign_block_scene = SIGN_APP_PART_DEFAULT << 16 | 0xA9FD;
         constexpr u32 sign_block_mesh = SIGN_APP_PART_DEFAULT << 16 | 0x57CC;
+        constexpr u32 sign_block_material = SIGN_APP_PART_DEFAULT << 16 | 0x26EB;
 
         struct SceneInfo : public Block
         {
@@ -200,7 +196,7 @@ namespace assets
                 virtual const u32 signature() const { return sign_block_mesh; }
             };
             // Stream class for reading and writing mesh data.
-            class APPLIB_API MeshStream : public Stream
+            class APPLIB_API MeshStream final : public Stream
             {
             public:
                 /**
@@ -218,5 +214,43 @@ namespace assets
                 virtual void writeToStream(BinStream &stream, meta::Block *block) override;
             };
         } // namespace mesh
+
+        struct MaterialBlock : public Block
+        {
+            std::string name;
+
+            /**
+             * @brief Returns the signature of the block.
+             * @return The signature of the block.
+             */
+            virtual const u32 signature() const { return sign_block_material; }
+        };
+
+        class APPLIB_API MaterialStream final : public Stream
+        {
+        public:
+            /**
+             * @brief Writes a block to the binary stream.
+             * @param stream The binary stream to write to.
+             * @param block The block to write.
+             */
+            virtual void writeToStream(BinStream &stream, meta::Block *block) override
+            {
+                MaterialBlock *material = static_cast<MaterialBlock *>(block);
+                stream.write(material->name);
+            }
+
+            /**
+             * @brief Reads a block from the binary stream.
+             * @param stream The binary stream to read from.
+             * @return A pointer to the read block.
+             */
+            virtual meta::Block *readFromStream(BinStream &stream) override
+            {
+                MaterialBlock *block = new MaterialBlock();
+                stream.read(block->name);
+                return block;
+            }
+        };
     } // namespace meta
 } // namespace assets
