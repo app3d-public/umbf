@@ -5,19 +5,26 @@
 
 namespace assets
 {
+    // Enumeration representing the protocol for the target asset.
+    enum class TargetProto : u8
+    {
+        Unknown, // Unknown or unspecified protocol.
+        File,    // Local repository
+        Network  // Cloud repository
+    };
+
     /**
      * @brief Structure representing information about a target asset.
      */
-    struct TargetInfo : InfoHeader
+    struct TargetAddr
     {
-        // Enumeration representing the protocol for the target asset.
-        enum Proto : u8
-        {
-            Unknown, // Unknown or unspecified protocol.
-            File,    // Local repository
-            Network  // Cloud repository
-        } proto;
-        std::string url; // URL or path to the target resource.
+        TargetProto proto; // Protocol for the target asset.
+        std::string url;   // URL or path to the target resource.
+    };
+
+    struct TargetMetaData : public InfoHeader
+    {
+        u32 checksum;
     };
 
     /**
@@ -32,25 +39,24 @@ namespace assets
          * @brief Constructor for the Target class.
          * @param assetInfo Asset meta header
          * @param targetInfo Specific target asset information.
-         * @param targetChecksum Target asset checksum.
+         * @param targetHeader Specific target asset header.
          * @param checksum Asset checksum.
          */
-        Target(const InfoHeader &assetInfo, const TargetInfo &targetInfo, u32 targetChecksum, u32 checksum = 0)
-            : Asset(assetInfo, checksum), _targetInfo(targetInfo)
+        Target(const InfoHeader &assetInfo, const TargetAddr &addr, const TargetMetaData &targetMeta, u32 checksum = 0)
+            : Asset(assetInfo, checksum), _addr(addr), _targetMeta(targetMeta)
         {
         }
 
         /**
-         * @brief Retrieves the target asset information.
-         * @return Reference to the TargetInfo structure.
+         * @brief Retrieves the target asset address.
          */
-        TargetInfo targetInfo() const { return _targetInfo; }
+        TargetAddr addr() const { return _addr; }
 
         /**
-         * @brief Retrieves the target asset checksum.
-         * @return Target asset checksum.
+         * @brief Retrieves the target asset header.
+         * @return Reference to the TargetHeader structure.
          */
-        u32 targetChecksum() const { return _targetChecksum; }
+        TargetMetaData targetMeta() const { return _targetMeta; }
 
         /**
          * @brief Saves the target asset to a specified filesystem path.
@@ -92,8 +98,8 @@ namespace assets
                                          const std::filesystem::path &cachePath, std::filesystem::copy_options options);
 
     private:
-        TargetInfo _targetInfo;
-        u32 _targetChecksum;
+        TargetAddr _addr;
+        TargetMetaData _targetMeta;
     };
 
     /**

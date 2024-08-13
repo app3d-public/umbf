@@ -8,17 +8,17 @@ namespace assets
                                              const std::filesystem::path &cachePath,
                                              std::filesystem::copy_options options)
     {
-        switch (_targetInfo.proto)
+        switch (_addr.proto)
         {
-            case TargetInfo::Proto::File:
+            case TargetProto::File:
             {
                 if (std::filesystem::exists(cachePath) && options == std::filesystem::copy_options::skip_existing)
                     return io::file::ReadState::Cancelled;
 
-                std::filesystem::path url = _targetInfo.url;
+                std::filesystem::path url = _addr.url;
                 if (url.is_relative()) url = relativeRoot / url;
                 if (url == cachePath) return io::file::ReadState::Cancelled;
-                logInfo("Fetching target '%s' from local repo to cache", _targetInfo.url.c_str());
+                logInfo("Fetching target '%s' from local repo to cache", _addr.url.c_str());
                 if (::io::file::copyFile(url, cachePath, options))
                     return io::file::ReadState::Success;
                 else
@@ -32,24 +32,24 @@ namespace assets
 
     bool Target::writeToStream(BinStream &stream)
     {
-        u8 headerData = (static_cast<u8>(_targetInfo.type) & 0x3F) |                             // Type
-                        (static_cast<u8>(_targetInfo.compressed) << 6) |                         // Compressed
-                        (static_cast<u8>(_targetInfo.proto == TargetInfo::Proto::Network) << 7); // Proto
-        stream.write(headerData).write(_targetInfo.url).write(_targetChecksum).write(meta);
+        u8 headerData = (static_cast<u8>(_targetMeta.type) & 0x3F) |                 // Type
+                        (static_cast<u8>(_targetMeta.compressed) << 6) |             // Compressed
+                        (static_cast<u8>(_addr.proto == TargetProto::Network) << 7); // Proto
+        stream.write(headerData).write(_addr.url).write(_targetMeta.checksum).write(meta);
         return true;
     }
 
     std::shared_ptr<Target> Target::readFromStream(InfoHeader &assetInfo, BinStream &stream)
     {
-        TargetInfo targetInfo;
-        u32 targetChecksum;
+        TargetAddr addr;
+        TargetMetaData targetMeta;
         u8 headerData;
-        stream.read(headerData).read(targetInfo.url).read(targetChecksum);
-        targetInfo.type = static_cast<Type>(headerData & 0x3F);                                        // Type
-        targetInfo.compressed = (headerData >> 6) & 0x1;                                               // Compressed
-        targetInfo.proto = (headerData & 0x80) ? TargetInfo::Proto::Network : TargetInfo::Proto::File; // Proto
+        stream.read(headerData).read(addr.url).read(targetMeta.checksum);
+        targetMeta.type = static_cast<Type>(headerData & 0x3F);                                  // Type
+        targetMeta.compressed = (headerData >> 6) & 0x1;                                         // Compressed
+        addr.proto = (headerData & 0x80) ? TargetProto::Network : TargetProto::File; // Proto
         u32 checksum = crc32(0, stream.data(), stream.size());
-        auto target = std::make_shared<Target>(assetInfo, targetInfo, targetChecksum, checksum);
+        auto target = std::make_shared<Target>(assetInfo, addr, targetMeta, checksum);
         if (!target) return nullptr;
         stream.read(target->meta);
         return target;
