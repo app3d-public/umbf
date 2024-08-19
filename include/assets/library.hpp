@@ -48,6 +48,16 @@ namespace assets
         }
 
         /**
+         * @brief Constructor for the Target class.
+         * @param addr Target asset address.
+         * @param targetMeta Target meta data
+         */
+        Target(const TargetAddr &addr = {}, const TargetMetaData &targetMeta = {})
+            : Asset({Type::Target}, 0), _addr(addr), _targetMeta(targetMeta)
+        {
+        }
+
+        /**
          * @brief Retrieves the target asset address.
          */
         TargetAddr addr() const { return _addr; }

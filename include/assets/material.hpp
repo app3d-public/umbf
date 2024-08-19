@@ -32,6 +32,8 @@ namespace assets
         {
         }
 
+        Material(const MaterialInfo &material = {}) : Asset({Type::Material}, 0), info{material} {}
+
         /**
          * @brief Saves the material to a specified filesystem path.
          * @param path Filesystem path to save the material.
@@ -69,7 +71,7 @@ namespace assets
 } // namespace assets
 
 template <>
-BinStream& BinStream::write(const assets::MaterialNode& src);
+BinStream &BinStream::write(const assets::MaterialNode &src);
 
 template <>
-BinStream& BinStream::read(assets::MaterialNode& dst);
+BinStream &BinStream::read(assets::MaterialNode &dst);

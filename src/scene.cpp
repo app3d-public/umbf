@@ -13,24 +13,12 @@ namespace assets
         stream.write(static_cast<u16>(objects.size()));
         for (const auto &object : objects)
         {
+            stream.write(object->name);
             // Transform
             stream.write(object->transform.position).write(object->transform.rotation).write(object->transform.scale);
 
-            // Material
-            stream.write(object->matID);
-
             // Meta
-            stream.write(object->meta->signature());
-            meta::Stream *metaStream = meta::getStream(object->meta->signature());
-            if (!metaStream)
-                stream.write(0ULL);
-            else
-            {
-                BinStream tmp{};
-                metaStream->writeToStream(tmp, object->meta);
-                u64 blockSize = tmp.size();
-                stream.write(blockSize).write(tmp.data(), blockSize);
-            }
+            stream.write(object->meta);
         }
 
         // Textures
@@ -69,28 +57,14 @@ namespace assets
         for (int i = 0; i < objectSize; ++i)
         {
             auto object = std::make_shared<Object>();
+
+            stream.read(object->name);
             // Transform
             stream.read(object->transform.position).read(object->transform.rotation).read(object->transform.scale);
 
-            // Material
-            stream.read(object->matID);
-
             // Meta
-            meta::Header header;
-            stream.read(header.signature).read(header.blockSize);
-            if (header.blockSize == 0)
-                logError("Broken meta block");
-            else
-            {
-                meta::Stream *metaStream = meta::getStream(header.signature);
-                if (!metaStream)
-                    stream.shift(header.blockSize);
-                else
-                {
-                    object->meta = metaStream->readFromStream(stream);
-                    objects.push_back(object);
-                }
-            }
+            ForwardList<std::shared_ptr<meta::Block>> objectMeta;
+            stream.read(objectMeta);
         }
         DArray<std::shared_ptr<Asset>> textures;
         readTexturesFromStream(stream, textures);
@@ -246,12 +220,12 @@ namespace assets
 
                 // Sizes
                 stream.write(static_cast<u32>(model.vertices.size()))
-                    .write(static_cast<u32>(model.vertexGroups.size()))
+                    .write(static_cast<u32>(model.groups.size()))
                     .write(static_cast<u32>(model.faces.size()))
                     .write(static_cast<u32>(model.indices.size()));
 
                 // Groups
-                for (auto &group : model.vertexGroups)
+                for (auto &group : model.groups)
                 {
                     stream.write(model.vertices[group.vertices.front()].pos)
                         .write(static_cast<u32>(group.vertices.size()));
@@ -292,13 +266,13 @@ namespace assets
                 u32 vCount, vgCount, fCount, iCount;
                 stream.read(vCount).read(vgCount).read(fCount).read(iCount);
                 model.vertices.resize(vCount);
-                model.vertexGroups.resize(vgCount);
+                model.groups.resize(vgCount);
                 model.faces.resize(fCount);
                 model.indices.resize(iCount);
                 mesh->baryVertices.resize(iCount);
 
                 // Groups
-                for (auto &group : model.vertexGroups)
+                for (auto &group : model.groups)
                 {
                     glm::vec3 pos;
                     stream.read(pos);

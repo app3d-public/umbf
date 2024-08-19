@@ -7,6 +7,7 @@ namespace assets
 {
     struct Object
     {
+        std::string name;
         struct Transform
         {
             glm::vec3 position = glm::vec3(0.0f);
@@ -14,10 +15,7 @@ namespace assets
             glm::vec3 scale = glm::vec3(1.0f);
         } transform;
 
-        i32 matID = -1;
-        meta::Block *meta = nullptr;
-
-        ~Object() { delete meta; }
+        ForwardList<std::shared_ptr<meta::Block>> meta;
     };
 
     /**
@@ -86,6 +84,7 @@ namespace assets
     {
         constexpr u32 sign_block_scene = SIGN_APP_PART_DEFAULT << 16 | 0xA9FD;
         constexpr u32 sign_block_mesh = SIGN_APP_PART_DEFAULT << 16 | 0x57CC;
+        constexpr u32 sign_block_mesh_mat_range_assign = SIGN_APP_PART_DEFAULT << 16 | 0x3627;
         constexpr u32 sign_block_material = SIGN_APP_PART_DEFAULT << 16 | 0x26EB;
 
         struct SceneInfo : public Block
@@ -161,11 +160,11 @@ namespace assets
             // Represents a 3D mesh model.
             struct Model
             {
-                DArray<Vertex> vertices;          ///< Array containing all vertices of the model.
-                DArray<VertexGroup> vertexGroups; ///< Array containing groups of vertices.
-                DArray<Face> faces;               ///< Array of faces that make up the model.
-                DArray<u32> indices;              ///< Array of indices for rendering the model.
-                AABB aabb;                        ///< Axis-aligned bounding box that encloses the model.
+                DArray<Vertex> vertices;    ///< Array containing all vertices of the model.
+                DArray<VertexGroup> groups; ///< Array containing groups of vertices.
+                DArray<Face> faces;         ///< Array of faces that make up the model.
+                DArray<u32> indices;        ///< Array of indices for rendering the model.
+                AABB aabb;                  ///< Axis-aligned bounding box that encloses the model.
             };
 
             namespace bary
@@ -215,9 +214,15 @@ namespace assets
             };
         } // namespace mesh
 
-        struct MaterialBlock : public Block
+        struct MaterialBlock final : public Block
         {
             std::string name;
+            DArray<u32> assignments;
+
+            MaterialBlock(const std::string &name = "", DArray<u32> assignments = {})
+                : name(name), assignments(assignments)
+            {
+            }
 
             /**
              * @brief Returns the signature of the block.
@@ -237,7 +242,8 @@ namespace assets
             virtual void writeToStream(BinStream &stream, meta::Block *block) override
             {
                 MaterialBlock *material = static_cast<MaterialBlock *>(block);
-                stream.write(material->name);
+                stream.write(material->name).write(material->assignments.size());
+                for (auto &a : material->assignments) stream.write(a);
             }
 
             /**
@@ -248,7 +254,54 @@ namespace assets
             virtual meta::Block *readFromStream(BinStream &stream) override
             {
                 MaterialBlock *block = new MaterialBlock();
-                stream.read(block->name);
+                u32 assignSize;
+                stream.read(block->name).read(assignSize);
+                block->assignments.resize(assignSize);
+                for (auto &a : block->assignments) stream.read(a);
+                return block;
+            }
+        };
+
+        struct MatRangeAssignAtrr final : public Block
+        {
+            u32 matID;
+            DArray<u32> faces;
+
+            /**
+             * @brief Returns the signature of the block.
+             * @return The signature of the block.
+             */
+            virtual const u32 signature() const { return sign_block_mesh_mat_range_assign; }
+        };
+
+        class APPLIB_API MatRangeAssignStream final : public Stream
+        {
+        public:
+            /**
+             * @brief Writes a block to the binary stream.
+             * @param stream The binary stream to write to.
+             * @param block The block to write.
+             */
+            virtual void writeToStream(BinStream &stream, meta::Block *block) override
+            {
+                MatRangeAssignAtrr *assignment = static_cast<MatRangeAssignAtrr *>(block);
+                stream.write(assignment->matID)
+                    .write(assignment->faces.size())
+                    .write(assignment->faces.data(), assignment->faces.size());
+            }
+
+            /**
+             * @brief Reads a block from the binary stream.
+             * @param stream The binary stream to read from.
+             * @return A pointer to the read block.
+             */
+            virtual meta::Block *readFromStream(BinStream &stream) override
+            {
+                MatRangeAssignAtrr *block = new MatRangeAssignAtrr();
+                u32 faceSize;
+                stream.read(block->matID).read(faceSize);
+                block->faces.resize(faceSize);
+                stream.read(block->faces.data(), faceSize);
                 return block;
             }
         };

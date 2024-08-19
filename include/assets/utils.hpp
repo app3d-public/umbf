@@ -3,6 +3,7 @@
 #include <glm/glm.hpp>
 #include <oneapi/tbb/parallel_for.h>
 #include "image.hpp"
+#include "scene.hpp"
 
 namespace assets
 {
@@ -145,5 +146,10 @@ namespace assets
          * destination format and channel configuration.
          */
         APPLIB_API void *convertImage(const assets::ImageInfo &image, vk::Format dstFormat, int dstChannels);
+
+        APPLIB_API void filterMatAssignments(const DArray<std::shared_ptr<meta::MaterialBlock>> &matMeta,
+                                             const DArray<std::shared_ptr<meta::MatRangeAssignAtrr>> &assignes,
+                                             size_t faceCount, u32 defaultMatID,
+                                             DArray<std::shared_ptr<meta::MatRangeAssignAtrr>> &dst);
     } // namespace utils
 } // namespace assets

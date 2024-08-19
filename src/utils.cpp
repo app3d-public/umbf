@@ -1,5 +1,6 @@
 #include <assets/utils.hpp>
 #include <core/log.hpp>
+#include <numeric>
 
 namespace assets
 {
@@ -169,6 +170,33 @@ namespace assets
                                                      image.channelCount, dstChannels);
                 default:
                     return nullptr;
+            }
+        }
+
+        void filterMatAssignments(const DArray<std::shared_ptr<meta::MaterialBlock>> &matMeta,
+                                  const DArray<std::shared_ptr<meta::MatRangeAssignAtrr>> &assignes, size_t faceCount,
+                                  u32 defaultMatID, DArray<std::shared_ptr<meta::MatRangeAssignAtrr>> &dst)
+        {
+            auto defaultAssign = std::make_shared<assets::meta::MatRangeAssignAtrr>();
+            defaultAssign->matID = defaultMatID;
+            defaultAssign->faces.resize(faceCount);
+            std::iota(defaultAssign->faces.begin(), defaultAssign->faces.end(), 0);
+
+            if (assignes.empty())
+                dst.push_back(defaultAssign);
+            else
+            {
+                DArray<bool> faceIncluded(faceCount, false);
+
+                for (const auto &assign : assignes)
+                    for (const auto &face : assign->faces) faceIncluded[face] = true;
+
+                defaultAssign->faces.erase(std::remove_if(defaultAssign->faces.begin(), defaultAssign->faces.end(),
+                                                          [&](u32 index) { return faceIncluded[index]; }),
+                                           defaultAssign->faces.end());
+
+                if (!defaultAssign->faces.empty()) dst.push_back(defaultAssign);
+                for (const auto &assign : assignes) dst.push_back(assign);
             }
         }
     } // namespace utils

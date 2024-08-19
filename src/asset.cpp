@@ -22,6 +22,11 @@ namespace assets
             }
         }
 
+        void initStreams(const DArray<std::pair<u32, Stream *>>& streams)
+        {
+            g_Streams.insert(streams.begin(), streams.end());
+        }
+
         void clearStreams()
         {
             for (auto &[id, stream] : g_Streams) delete stream;
