@@ -262,10 +262,12 @@ namespace assets
             }
         };
 
-        struct MatRangeAssignAtrr final : public Block
+        struct MatRangeAssignAtrr : public Block
         {
             u32 matID;
             DArray<u32> faces;
+
+            virtual ~MatRangeAssignAtrr() = default;
 
             /**
              * @brief Returns the signature of the block.
