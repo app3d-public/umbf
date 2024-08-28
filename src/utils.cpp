@@ -7,7 +7,7 @@ namespace assets
     namespace utils
     {
         template <typename T>
-        void fillColorPixelsImpl(const glm::vec4 &color, ImageInfo &imageInfo)
+        void fillColorPixelsImpl(const glm::vec4 &color, Image2D &imageInfo)
         {
             T *data = (T *)scalable_malloc(imageInfo.imageSize());
             if (color[0] == color[1] && color[0] == color[2] && color[0] == color[3])
@@ -23,7 +23,7 @@ namespace assets
             imageInfo.pixels = data;
         }
 
-        void fillColorPixels(const glm::vec4 &color, ImageInfo &imageInfo)
+        void fillColorPixels(const glm::vec4 &color, Image2D &imageInfo)
         {
             switch (imageInfo.imageFormat)
             {
@@ -77,7 +77,7 @@ namespace assets
         }
 
         template <typename T>
-        void copyPixelsToAreaImpl(ImageInfo &src, const ImageInfo &dst, const Atlas::Rect &rect)
+        void copyPixelsToAreaImpl(Image2D &src, const Image2D &dst, const Atlas::Rect &rect)
         {
             const T *pSrc = reinterpret_cast<const T *>(src.pixels);
             T *pDst = reinterpret_cast<T *>(dst.pixels);
@@ -89,7 +89,7 @@ namespace assets
                 throw std::runtime_error("Dst area is out of image bounds");
         }
 
-        void copyPixelsToArea(ImageInfo &src, const ImageInfo &dst, const Atlas::Rect &rect)
+        void copyPixelsToArea(Image2D &src, const Image2D &dst, const Atlas::Rect &rect)
         {
             if (src.imageFormat != dst.imageFormat) throw std::runtime_error("Image format mismatch");
             switch (dst.imageFormat)
@@ -142,7 +142,7 @@ namespace assets
             }
         }
 
-        void *convertImage(const assets::ImageInfo &image, vk::Format dstFormat, int dstChannels)
+        void *convertImage(const assets::Image2D &image, vk::Format dstFormat, int dstChannels)
         {
             switch (image.imageFormat)
             {
@@ -173,11 +173,11 @@ namespace assets
             }
         }
 
-        void filterMatAssignments(const DArray<std::shared_ptr<meta::MaterialBlock>> &matMeta,
-                                  const DArray<std::shared_ptr<meta::MatRangeAssignAtrr>> &assignes, size_t faceCount,
-                                  u32 defaultMatID, DArray<std::shared_ptr<meta::MatRangeAssignAtrr>> &dst)
+        void filterMatAssignments(const DArray<std::shared_ptr<MaterialInfo>> &matMeta,
+                                  const DArray<std::shared_ptr<MatRangeAssignAtrr>> &assignes, size_t faceCount,
+                                  u32 defaultMatID, DArray<std::shared_ptr<MatRangeAssignAtrr>> &dst)
         {
-            auto defaultAssign = std::make_shared<assets::meta::MatRangeAssignAtrr>();
+            auto defaultAssign = std::make_shared<assets::MatRangeAssignAtrr>();
             defaultAssign->matID = defaultMatID;
             defaultAssign->faces.resize(faceCount);
             std::iota(defaultAssign->faces.begin(), defaultAssign->faces.end(), 0);

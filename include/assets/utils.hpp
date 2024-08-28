@@ -2,8 +2,7 @@
 
 #include <glm/glm.hpp>
 #include <oneapi/tbb/parallel_for.h>
-#include "image.hpp"
-#include "scene.hpp"
+#include "asset.hpp"
 
 namespace assets
 {
@@ -18,7 +17,7 @@ namespace assets
          * @param color The color to fill the image with, represented as a glm::vec4.
          * @param imageInfo The ImageInfo structure containing the image details, including the format.
          */
-        APPLIB_API void fillColorPixels(const glm::vec4 &color, ImageInfo &imageInfo);
+        APPLIB_API void fillColorPixels(const glm::vec4 &color, Image2D &imageInfo);
 
         /**
          * @brief Copies pixel data from the source image to a specified area in the destination image.
@@ -33,7 +32,7 @@ namespace assets
          * @throws std::runtime_error if the image formats of the source and destination images do not match
          *         or if the specified rectangular area is out of the bounds of the destination image.
          */
-        APPLIB_API void copyPixelsToArea(ImageInfo &src, const ImageInfo &dst, const Atlas::Rect &rect);
+        APPLIB_API void copyPixelsToArea(Image2D &src, const Image2D &dst, const Atlas::Rect &rect);
 
         /**
          * @brief A template function to convert the bit depth of an image from one type to another
@@ -145,11 +144,11 @@ namespace assets
          * @return  A new buffer is dynamically allocated for the converted image data based on the specified
          * destination format and channel configuration.
          */
-        APPLIB_API void *convertImage(const assets::ImageInfo &image, vk::Format dstFormat, int dstChannels);
+        APPLIB_API void *convertImage(const assets::Image2D &image, vk::Format dstFormat, int dstChannels);
 
-        APPLIB_API void filterMatAssignments(const DArray<std::shared_ptr<meta::MaterialBlock>> &matMeta,
-                                             const DArray<std::shared_ptr<meta::MatRangeAssignAtrr>> &assignes,
+        APPLIB_API void filterMatAssignments(const DArray<std::shared_ptr<assets::MaterialInfo>> &matMeta,
+                                             const DArray<std::shared_ptr<assets::MatRangeAssignAtrr>> &assignes,
                                              size_t faceCount, u32 defaultMatID,
-                                             DArray<std::shared_ptr<meta::MatRangeAssignAtrr>> &dst);
+                                             DArray<std::shared_ptr<assets::MatRangeAssignAtrr>> &dst);
     } // namespace utils
 } // namespace assets
