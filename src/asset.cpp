@@ -1,4 +1,5 @@
 #include <assets/asset.hpp>
+#include <assets/utils.hpp>
 #include <core/hash.hpp>
 #include <core/io/file.hpp>
 #include <core/log.hpp>
@@ -165,6 +166,45 @@ namespace assets
         return packResult != rectpack2D::callback_result::ABORT_PACKING;
     }
 
+    void AtlasStream::writeToStream(BinStream &stream, meta::Block *block)
+    {
+        auto image = static_cast<Image2D *>(block);
+        writeImageInfo(stream, image);
+        auto atlas = static_cast<Atlas *>(block);
+        stream.write(atlas->discardStep).write(static_cast<u16>(atlas->packData.size()));
+        utils::fillColorPixels(glm::vec4(0.0f), *image);
+        for (size_t i = 0; i < atlas->packData.size(); i++)
+        {
+            if (!atlas->images[i]->pixels) throw std::runtime_error("Pixels cannot be null");
+            stream.write(atlas->packData[i].w)
+                .write(atlas->packData[i].h)
+                .write(atlas->packData[i].x)
+                .write(atlas->packData[i].y);
+            utils::copyPixelsToArea(*atlas->images[i], *image, atlas->packData[i]);
+        }
+        stream.write(reinterpret_cast<char *>(atlas->pixels), atlas->imageSize());
+    }
+
+    meta::Block *AtlasStream::readFromStream(BinStream &stream)
+    {
+        auto atlas = new Atlas();
+        readImageInfo(stream, atlas);
+        u16 packDataSize;
+        stream.read(atlas->discardStep).read(packDataSize);
+        atlas->packData.resize(packDataSize);
+        for (size_t i = 0; i < packDataSize; i++)
+        {
+            stream.read(atlas->packData[i].w)
+                .read(atlas->packData[i].h)
+                .read(atlas->packData[i].x)
+                .read(atlas->packData[i].y);
+        }
+        char *pixels = (char *)scalable_malloc(atlas->imageSize());
+        stream.read(pixels, atlas->imageSize());
+        atlas->pixels = (void *)pixels;
+        return atlas;
+    }
+
     void MaterialStream::writeToStream(BinStream &stream, meta::Block *block)
     {
         auto material = static_cast<Material *>(block);
@@ -185,12 +225,12 @@ namespace assets
         stream.write(static_cast<u16>(scene->objects.size()));
         for (const auto &object : scene->objects)
         {
-            stream.write(object->name);
+            stream.write(object.name);
             // Transform
-            stream.write(object->transform.position).write(object->transform.rotation).write(object->transform.scale);
+            stream.write(object.transform.position).write(object.transform.rotation).write(object.transform.scale);
 
             // Meta
-            stream.write(object->meta);
+            stream.write(object.meta);
         }
 
         // Textures
@@ -205,12 +245,11 @@ namespace assets
         scene->objects.resize(objectCount);
         for (auto &object : scene->objects)
         {
-            object = std::make_shared<Object>();
-            stream.read(object->name);
+            stream.read(object.name);
             // Transform
-            stream.read(object->transform.position).read(object->transform.rotation).read(object->transform.scale);
+            stream.read(object.transform.position).read(object.transform.rotation).read(object.transform.scale);
             // Meta
-            stream.read(object->meta);
+            stream.read(object.meta);
         }
         stream.read(scene->textures).read(scene->materials);
         return scene;
@@ -409,7 +448,7 @@ namespace assets
     {
         MatRangeAssignAtrr *assignment = static_cast<MatRangeAssignAtrr *>(block);
         stream.write(assignment->matID)
-            .write(assignment->faces.size())
+            .write(static_cast<u32>(assignment->faces.size()))
             .write(assignment->faces.data(), assignment->faces.size());
     }
 
@@ -440,7 +479,7 @@ namespace assets
         target->header.type = static_cast<assets::Type>(headerData & 0x3F);
         target->header.compressed = (headerData >> 6) & 0x1;
         target->addr.proto = (headerData & 0x80) ? Target::Addr::Proto::Network : Target::Addr::Proto::File; // Proto
-        target->checksum = crc32(0, stream.data(), stream.size());
+        stream.read(target->addr.url).read(target->checksum);
         return target;
     }
 
@@ -534,7 +573,7 @@ BinStream &BinStream::read(DArray<std::shared_ptr<meta::Block>> &meta)
     {
         meta::Header header;
         read(header.blockSize);
-        if (header.blockSize == 0) break;
+        if (header.blockSize == 0ULL) break;
 
         read(header.signature);
         auto *metaStream = meta::getStream(header.signature);
@@ -582,7 +621,8 @@ BinStream &BinStream::write(const assets::Library::Node &node)
         write(node.isFolder);
         if (!node.isFolder)
         {
-            if (!node.asset) throw std::runtime_error("Asset is null. Possible corrupted file structure");
+            if (node.asset.header.type == assets::Type::Invalid)
+                throw std::runtime_error("Asset is invalid. Possible corrupted file structure");
             write(node.asset);
         }
     }
@@ -610,7 +650,8 @@ BinStream &BinStream::read(assets::Library::Node &node)
         if (!node.isFolder)
         {
             read(node.asset);
-            if (!node.asset) throw std::runtime_error("Asset is null. Possible corrupted file structure");
+            if (node.asset.header.type == assets::Type::Invalid)
+                throw std::runtime_error("Asset is invalid. Possible corrupted file structure");
         }
     }
     return *this;

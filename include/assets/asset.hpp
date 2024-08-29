@@ -56,8 +56,8 @@ namespace assets
          */
         struct Header
         {
-            Type type;       //< The type of the asset
-            bool compressed; //< Indicates whether the asset data is compressed.
+            Type type = Type::Invalid; //< The type of the asset
+            bool compressed;           //< Indicates whether the asset data is compressed.
         } header;
         // Array of blocks, where the first block defines the asset type and the rest are metadata.
         DArray<std::shared_ptr<meta::Block>> blocks;
@@ -186,7 +186,7 @@ namespace assets
         virtual const u32 signature() const override { return sign_block::image_atlas; }
 
         Atlas() = default;
-        
+
         Atlas(const Image2D &image) : Image2D(image), discardStep(0) {}
     };
 
@@ -242,8 +242,8 @@ namespace assets
      */
     struct Material final : meta::Block
     {
-        DArray<std::shared_ptr<Asset>> textures; //< Array of texture assets associated with the material.
-        MaterialNode albedo;                     //< Albedo property of the material, defining its base color.
+        DArray<Asset> textures; //< Array of texture assets associated with the material.
+        MaterialNode albedo;    //< Albedo property of the material, defining its base color.
 
         /**
          * @brief Returns the signature of the material block.
@@ -322,9 +322,9 @@ namespace assets
      */
     struct Scene final : meta::Block
     {
-        DArray<std::shared_ptr<Object>> objects;  //< Array of objects present in the scene.
-        DArray<std::shared_ptr<Asset>> textures;  //< Array of texture assets used in the scene.
-        DArray<std::shared_ptr<Asset>> materials; //< Array of material assets used in the scene.
+        DArray<Object> objects;  //< Array of objects present in the scene.
+        DArray<Asset> textures;  //< Array of texture assets used in the scene.
+        DArray<Asset> materials; //< Array of material assets used in the scene.
 
         /**
          * @brief Returns the signature of the scene block.
@@ -513,7 +513,7 @@ namespace assets
         {
             MaterialInfo *material = static_cast<MaterialInfo *>(block);
             stream.write(material->name)
-                .write(material->assignments.size())
+                .write(static_cast<u32>(material->assignments.size()))
                 .write(material->assignments.data(), material->assignments.size());
         }
 
@@ -638,15 +638,15 @@ namespace assets
 
     // The Library class serves as a storage for other assets. These assets can either be embedded or act as
     // targets.
-    struct Library final : meta::Block
+    struct APPLIB_API Library final : meta::Block
     {
         // Represents a node in the file structure of the asset library.
         struct Node
         {
-            std::string name;             // Name of the file node.
-            DArray<Node> children;        // Child nodes of this file node.
-            bool isFolder{false};         // Flag indicating if the node is a folder.
-            std::shared_ptr<Asset> asset; // Shared pointer to the asset associated with the node.
+            std::string name;      // Name of the file node.
+            DArray<Node> children; // Child nodes of this file node.
+            bool isFolder{false};  // Flag indicating if the node is a folder.
+            Asset asset;           // The asset associated with the node.
         } fileTree;
 
         /**
@@ -760,13 +760,13 @@ BinStream &BinStream::read(DArray<std::shared_ptr<meta::Block>> &meta);
 template <>
 inline BinStream &BinStream::write(const assets::Asset &asset)
 {
-    return write(asset.header).write(asset.blocks).write(asset.checksum);
+    return write(asset.header).write(asset.blocks);
 }
 
 template <>
 inline BinStream &BinStream::read(assets::Asset &dst)
 {
-    return read(dst.header).read(dst.blocks).read(dst.checksum);
+    return read(dst.header).read(dst.blocks);
 }
 
 template <>
@@ -783,7 +783,8 @@ BinStream &BinStream::read(DArray<assets::Asset> &dst);
 template <>
 inline BinStream &BinStream::write(const assets::MaterialNode &src)
 {
-    return write(src.rgb).write(src.textured ? ((1 << 15) | (src.textureID & 0x7FFF)) : 0);
+    u16 data = src.textured ? ((1 << 15) | (src.textureID & 0x7FFF)) : 0;
+    return write(src.rgb).write(data);
 }
 
 template <>
