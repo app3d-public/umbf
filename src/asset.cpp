@@ -25,13 +25,13 @@ namespace assets
         }
     }
 
-    bool saveAsset(Asset &asset, const std::filesystem::path &path, BinStream &src, int compression)
+    bool saveAsset(Asset &asset, const std::filesystem::path &path, astl::bin_stream &src, int compression)
     {
-        BinStream dstStream;
+        astl::bin_stream dstStream;
         dstStream.write(sign_format_assets).write(asset.header);
         if (asset.header.compressed)
         {
-            DArray<char> compressed;
+            astl::vector<char> compressed;
             if (!io::file::compress(src.data() + src.pos(), src.size() - src.pos(), compressed, compression))
             {
                 logError("Failed to compress: %s", path.string().c_str());
@@ -48,17 +48,17 @@ namespace assets
 
     bool Asset::save(const std::filesystem::path &path, int compression)
     {
-        BinStream stream{};
+        astl::bin_stream stream{};
         stream.write(blocks);
         return saveAsset(*this, path, stream, compression);
     }
 
-    bool loadAsset(const std::filesystem::path &path, BinStream &dst, Asset::Header &header)
+    bool loadAsset(const std::filesystem::path &path, astl::bin_stream &dst, Asset::Header &header)
     {
-        DArray<char> source;
+        astl::vector<char> source;
         if (io::file::readBinary(path.string(), source) != io::file::ReadState::Success) return false;
 
-        BinStream sourceStream(std::move(source));
+        astl::bin_stream sourceStream(std::move(source));
         u32 sign_file_format;
         sourceStream.read(sign_file_format);
         if (sign_file_format != sign_format_assets)
@@ -69,14 +69,14 @@ namespace assets
         sourceStream.read(header);
         if (header.compressed)
         {
-            DArray<char> decompressed;
+            astl::vector<char> decompressed;
             if (!io::file::decompress(sourceStream.data() + sourceStream.pos(),
                                       sourceStream.size() - sourceStream.pos(), decompressed))
             {
                 logError("Failed to decompress: %s", path.string().c_str());
                 return false;
             }
-            dst = BinStream(std::move(decompressed));
+            dst = astl::bin_stream(std::move(decompressed));
         }
         else
             dst = std::move(sourceStream);
@@ -87,7 +87,7 @@ namespace assets
     {
         try
         {
-            BinStream stream{};
+            astl::bin_stream stream{};
             auto asset = std::make_shared<Asset>();
             if (!loadAsset(path, stream, asset->header)) return nullptr;
             stream.read(asset->blocks);
@@ -102,7 +102,7 @@ namespace assets
         }
     }
 
-    void writeImageInfo(BinStream &stream, Image2D *image2D)
+    void writeImageInfo(astl::bin_stream &stream, Image2D *image2D)
     {
         stream.write(image2D->width).write(image2D->height).write(static_cast<u16>(image2D->channelCount));
         u8 channelNamesSize = image2D->channelNames.size();
@@ -111,7 +111,7 @@ namespace assets
         stream.write(image2D->bytesPerChannel).write(static_cast<u8>(image2D->imageFormat));
     }
 
-    void Image2DStream::writeToStream(BinStream &stream, meta::Block *block)
+    void Image2DStream::writeToStream(astl::bin_stream &stream, meta::Block *block)
     {
         auto image = static_cast<Image2D *>(block);
         writeImageInfo(stream, image);
@@ -119,7 +119,7 @@ namespace assets
         stream.write(reinterpret_cast<char *>(image->pixels), image->imageSize());
     }
 
-    void readImageInfo(BinStream &stream, Image2D *image2D)
+    void readImageInfo(astl::bin_stream &stream, Image2D *image2D)
     {
         stream.read(image2D->width)
             .read(image2D->height)
@@ -138,7 +138,7 @@ namespace assets
         image2D->imageFormat = static_cast<vk::Format>(imageFormat);
     }
 
-    meta::Block *Image2DStream::readFromStream(BinStream &stream)
+    meta::Block *Image2DStream::readFromStream(astl::bin_stream &stream)
     {
         Image2D *image = new Image2D();
         readImageInfo(stream, image);
@@ -166,7 +166,7 @@ namespace assets
         return packResult != rectpack2D::callback_result::ABORT_PACKING;
     }
 
-    void AtlasStream::writeToStream(BinStream &stream, meta::Block *block)
+    void AtlasStream::writeToStream(astl::bin_stream &stream, meta::Block *block)
     {
         auto image = static_cast<Image2D *>(block);
         writeImageInfo(stream, image);
@@ -185,7 +185,7 @@ namespace assets
         stream.write(reinterpret_cast<char *>(atlas->pixels), atlas->imageSize());
     }
 
-    meta::Block *AtlasStream::readFromStream(BinStream &stream)
+    meta::Block *AtlasStream::readFromStream(astl::bin_stream &stream)
     {
         auto atlas = new Atlas();
         readImageInfo(stream, atlas);
@@ -205,20 +205,20 @@ namespace assets
         return atlas;
     }
 
-    void MaterialStream::writeToStream(BinStream &stream, meta::Block *block)
+    void MaterialStream::writeToStream(astl::bin_stream &stream, meta::Block *block)
     {
         auto material = static_cast<Material *>(block);
         stream.write(material->textures).write(material->albedo);
     }
 
-    meta::Block *MaterialStream::readFromStream(BinStream &stream)
+    meta::Block *MaterialStream::readFromStream(astl::bin_stream &stream)
     {
         Material *material = new Material();
         stream.read(material->textures).read(material->albedo);
         return material;
     }
 
-    void SceneStream::writeToStream(BinStream &stream, meta::Block *block)
+    void SceneStream::writeToStream(astl::bin_stream &stream, meta::Block *block)
     {
         auto scene = static_cast<Scene *>(block);
         // Objects
@@ -237,7 +237,7 @@ namespace assets
         stream.write(scene->textures).write(scene->materials);
     }
 
-    meta::Block *SceneStream::readFromStream(BinStream &stream)
+    meta::Block *SceneStream::readFromStream(astl::bin_stream &stream)
     {
         Scene *scene = new Scene();
         u16 objectCount;
@@ -276,10 +276,10 @@ namespace assets
                 bary.z = static_cast<f32>(binary & 0x1);
             }
 
-            DArray<u64> pack(const DArray<Vertex> &barycentric)
+            astl::vector<u64> pack(const astl::vector<Vertex> &barycentric)
             {
                 size_t packSize = (barycentric.size() * 3 + 63) / 64;
-                DArray<u64> pack64(packSize, 0);
+                astl::vector<u64> pack64(packSize, 0);
                 int bid = 0, offset = 0, i = 0;
                 while (bid < packSize)
                 {
@@ -299,9 +299,9 @@ namespace assets
                 }
                 return pack64;
             }
-            DArray<glm::vec3> unpack(const DArray<u64> &src, size_t size)
+            astl::vector<glm::vec3> unpack(const astl::vector<u64> &src, size_t size)
             {
-                DArray<glm::vec3> barycentric(size);
+                astl::vector<glm::vec3> barycentric(size);
                 int bid = 0, offset = 0, i = 0;
                 while (bid < size)
                 {
@@ -331,7 +331,7 @@ namespace assets
             }
         } // namespace bary
 
-        void MeshStream::writeToStream(BinStream &stream, meta::Block *block)
+        void MeshStream::writeToStream(astl::bin_stream &stream, meta::Block *block)
         {
 
             MeshBlock *mesh = static_cast<MeshBlock *>(block);
@@ -373,7 +373,7 @@ namespace assets
             stream.write(model.aabb.min).write(model.aabb.max);
         }
 
-        meta::Block *MeshStream::readFromStream(BinStream &stream)
+        meta::Block *MeshStream::readFromStream(astl::bin_stream &stream)
         {
             MeshBlock *mesh = new MeshBlock();
 
@@ -421,9 +421,9 @@ namespace assets
             }
 
             // Barycentrics
-            DArray<u64> baryPack((iCount * 3 + 63) / 64);
+            astl::vector<u64> baryPack((iCount * 3 + 63) / 64);
             stream.read(reinterpret_cast<char *>(baryPack.data()), baryPack.size() * sizeof(u64));
-            DArray<glm::vec3> barycentric = bary::unpack(baryPack, iCount);
+            astl::vector<glm::vec3> barycentric = bary::unpack(baryPack, iCount);
             for (int i = 0; i < iCount; i++)
                 mesh->baryVertices[i] = {model.vertices[model.indices[i]].pos, barycentric[i]};
 
@@ -434,7 +434,7 @@ namespace assets
         }
     } // namespace mesh
 
-    meta::Block *MaterialInfoStream::readFromStream(BinStream &stream)
+    meta::Block *MaterialInfoStream::readFromStream(astl::bin_stream &stream)
     {
         MaterialInfo *block = new MaterialInfo();
         u32 assignSize;
@@ -444,7 +444,7 @@ namespace assets
         return block;
     }
 
-    void MatRangeAssignStream::writeToStream(BinStream &stream, meta::Block *block)
+    void MatRangeAssignStream::writeToStream(astl::bin_stream &stream, meta::Block *block)
     {
         MatRangeAssignAtrr *assignment = static_cast<MatRangeAssignAtrr *>(block);
         stream.write(assignment->matID)
@@ -452,7 +452,7 @@ namespace assets
             .write(assignment->faces.data(), assignment->faces.size());
     }
 
-    meta::Block *MatRangeAssignStream::readFromStream(BinStream &stream)
+    meta::Block *MatRangeAssignStream::readFromStream(astl::bin_stream &stream)
     {
         MatRangeAssignAtrr *block = new MatRangeAssignAtrr();
         u32 faceSize;
@@ -462,7 +462,7 @@ namespace assets
         return block;
     }
 
-    void TargetStream::writeToStream(BinStream &stream, meta::Block *block)
+    void TargetStream::writeToStream(astl::bin_stream &stream, meta::Block *block)
     {
         auto target = static_cast<Target *>(block);
         u8 headerData = (static_cast<u8>(target->header.type) & 0x3F) |                             // Type
@@ -471,7 +471,7 @@ namespace assets
         stream.write(headerData).write(target->addr.url).write(target->checksum);
     }
 
-    meta::Block *TargetStream::readFromStream(BinStream &stream)
+    meta::Block *TargetStream::readFromStream(astl::bin_stream &stream)
     {
         Target *target = new Target();
         u8 headerData;
@@ -483,13 +483,13 @@ namespace assets
         return target;
     }
 
-    void LibraryStream::writeToStream(BinStream &stream, meta::Block *block)
+    void LibraryStream::writeToStream(astl::bin_stream &stream, meta::Block *block)
     {
         auto library = static_cast<Library *>(block);
         stream.write(library->fileTree);
     }
 
-    meta::Block *LibraryStream::readFromStream(BinStream &stream)
+    meta::Block *LibraryStream::readFromStream(astl::bin_stream &stream)
     {
         Library *library = new Library();
         stream.read(library->fileTree);
@@ -539,120 +539,124 @@ namespace assets
     }
 } // namespace assets
 
-template <>
-BinStream &BinStream::read(assets::Asset::Header &dst)
+namespace astl
 {
-    u8 data;
-    read(data);
-    dst.type = static_cast<assets::Type>(data & 0x3F);
-    dst.compressed = (data >> 6) & 0x1;
-    return *this;
-}
 
-template <>
-BinStream &BinStream::write(const DArray<std::shared_ptr<meta::Block>> &meta)
-{
-    for (auto &block : meta)
+    template <>
+    bin_stream &bin_stream::read(assets::Asset::Header &dst)
     {
-        auto *metaStream = meta::getStream(block->signature());
-        if (metaStream)
-        {
-            BinStream tmp{};
-            metaStream->writeToStream(tmp, block.get());
-            u64 blockSize = tmp.size();
-            write(blockSize).write(block->signature()).write(tmp.data(), blockSize);
-        }
+        u8 data;
+        read(data);
+        dst.type = static_cast<assets::Type>(data & 0x3F);
+        dst.compressed = (data >> 6) & 0x1;
+        return *this;
     }
-    return write(0ULL);
-}
 
-template <>
-BinStream &BinStream::read(DArray<std::shared_ptr<meta::Block>> &meta)
-{
-    while (_pos < _data.size())
+    template <>
+    bin_stream &bin_stream::write(const astl::vector<std::shared_ptr<meta::Block>> &meta)
     {
-        meta::Header header;
-        read(header.blockSize);
-        if (header.blockSize == 0ULL) break;
-
-        read(header.signature);
-        auto *metaStream = meta::getStream(header.signature);
-        if (metaStream)
+        for (auto &block : meta)
         {
-            std::shared_ptr<meta::Block> block(metaStream->readFromStream(*this));
-            if (block) meta.push_back(std::move(block));
+            auto *metaStream = meta::getStream(block->signature());
+            if (metaStream)
+            {
+                bin_stream tmp{};
+                metaStream->writeToStream(tmp, block.get());
+                u64 blockSize = tmp.size();
+                write(blockSize).write(block->signature()).write(tmp.data(), blockSize);
+            }
+        }
+        return write(0ULL);
+    }
+
+    template <>
+    bin_stream &bin_stream::read(astl::vector<std::shared_ptr<meta::Block>> &meta)
+    {
+        while (_pos < _data.size())
+        {
+            meta::Header header;
+            read(header.blockSize);
+            if (header.blockSize == 0ULL) break;
+
+            read(header.signature);
+            auto *metaStream = meta::getStream(header.signature);
+            if (metaStream)
+            {
+                std::shared_ptr<meta::Block> block(metaStream->readFromStream(*this));
+                if (block) meta.push_back(std::move(block));
+            }
+            else
+                shift(header.blockSize);
+        }
+        return *this;
+    }
+
+    template <>
+    bin_stream &bin_stream::read(astl::vector<assets::Asset> &dst)
+    {
+        u16 size;
+        read(size);
+        dst.resize(size);
+        for (auto &asset : dst) read(asset);
+        return *this;
+    }
+
+    template <>
+    bin_stream &bin_stream::read(assets::MaterialNode &dst)
+    {
+        u16 data;
+        read(dst.rgb).read(data);
+        dst.textured = data >> 15;
+        dst.textureID = dst.textured ? (data & 0x7FFF) : 0;
+        return *this;
+    }
+
+    template <>
+    bin_stream &bin_stream::write(const assets::Library::Node &node)
+    {
+        write(node.name);
+        u16 childCount = static_cast<u16>(node.children.size());
+        write(childCount);
+        if (childCount > 0)
+            for (const auto &child : node.children) write(child);
+        else
+        {
+            write(node.isFolder);
+            if (!node.isFolder)
+            {
+                if (node.asset.header.type == assets::Type::Invalid)
+                    throw std::runtime_error("Asset is invalid. Possible corrupted file structure");
+                write(node.asset);
+            }
+        }
+        return *this;
+    }
+
+    template <>
+    bin_stream &bin_stream::read(assets::Library::Node &node)
+    {
+        read(node.name);
+        u16 childCount;
+        read(childCount);
+        if (childCount > 0)
+        {
+            for (u16 i = 0; i < childCount; ++i)
+            {
+                assets::Library::Node child;
+                read(child);
+                node.children.push_back(child);
+            }
         }
         else
-            shift(header.blockSize);
-    }
-    return *this;
-}
-
-template <>
-BinStream &BinStream::read(DArray<assets::Asset> &dst)
-{
-    u16 size;
-    read(size);
-    dst.resize(size);
-    for (auto &asset : dst) read(asset);
-    return *this;
-}
-
-template <>
-BinStream &BinStream::read(assets::MaterialNode &dst)
-{
-    u16 data;
-    read(dst.rgb).read(data);
-    dst.textured = data >> 15;
-    dst.textureID = dst.textured ? (data & 0x7FFF) : 0;
-    return *this;
-}
-
-template <>
-BinStream &BinStream::write(const assets::Library::Node &node)
-{
-    write(node.name);
-    u16 childCount = static_cast<u16>(node.children.size());
-    write(childCount);
-    if (childCount > 0)
-        for (const auto &child : node.children) write(child);
-    else
-    {
-        write(node.isFolder);
-        if (!node.isFolder)
         {
-            if (node.asset.header.type == assets::Type::Invalid)
-                throw std::runtime_error("Asset is invalid. Possible corrupted file structure");
-            write(node.asset);
+            read(node.isFolder);
+            if (!node.isFolder)
+            {
+                read(node.asset);
+                if (node.asset.header.type == assets::Type::Invalid)
+                    throw std::runtime_error("Asset is invalid. Possible corrupted file structure");
+            }
         }
+        return *this;
     }
-    return *this;
-}
-
-template <>
-BinStream &BinStream::read(assets::Library::Node &node)
-{
-    read(node.name);
-    u16 childCount;
-    read(childCount);
-    if (childCount > 0)
-    {
-        for (u16 i = 0; i < childCount; ++i)
-        {
-            assets::Library::Node child;
-            read(child);
-            node.children.push_back(child);
-        }
-    }
-    else
-    {
-        read(node.isFolder);
-        if (!node.isFolder)
-        {
-            read(node.asset);
-            if (node.asset.header.type == assets::Type::Invalid)
-                throw std::runtime_error("Asset is invalid. Possible corrupted file structure");
-        }
-    }
-    return *this;
-}
+} // namespace astl

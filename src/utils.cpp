@@ -173,9 +173,9 @@ namespace assets
             }
         }
 
-        void filterMatAssignments(const DArray<std::shared_ptr<MaterialInfo>> &matMeta,
-                                  const DArray<std::shared_ptr<MatRangeAssignAtrr>> &assignes, size_t faceCount,
-                                  u32 defaultMatID, DArray<std::shared_ptr<MatRangeAssignAtrr>> &dst)
+        void filterMatAssignments(const astl::vector<std::shared_ptr<MaterialInfo>> &matMeta,
+                                  const astl::vector<std::shared_ptr<MatRangeAssignAtrr>> &assignes, size_t faceCount,
+                                  u32 defaultMatID, astl::vector<std::shared_ptr<MatRangeAssignAtrr>> &dst)
         {
             auto defaultAssign = std::make_shared<assets::MatRangeAssignAtrr>();
             defaultAssign->matID = defaultMatID;
@@ -186,7 +186,7 @@ namespace assets
                 dst.push_back(defaultAssign);
             else
             {
-                DArray<bool> faceIncluded(faceCount, false);
+                astl::vector<bool> faceIncluded(faceCount, false);
 
                 for (const auto &assign : assignes)
                     for (const auto &face : assign->faces) faceIncluded[face] = true;

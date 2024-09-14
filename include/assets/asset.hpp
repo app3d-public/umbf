@@ -60,7 +60,7 @@ namespace assets
             bool compressed;           //< Indicates whether the asset data is compressed.
         } header;
         // Array of blocks, where the first block defines the asset type and the rest are metadata.
-        DArray<std::shared_ptr<meta::Block>> blocks;
+        astl::vector<std::shared_ptr<meta::Block>> blocks;
         u32 checksum; //< Checksum of the asset for integrity validation.
 
         /**
@@ -100,13 +100,13 @@ namespace assets
     struct Image2D : meta::Block
     {
     public:
-        u16 width;                        //< Width of the image in pixels.
-        u16 height;                       //< Height of the image in pixels.
-        int channelCount;                 //< Number of color channels in the image.
-        DArray<std::string> channelNames; //< Names of the channels (e.g., "Red", "Green", "Blue").
-        u16 bytesPerChannel;              //< Number of bytes per channel.
-        void *pixels;                     //< Pointer to the raw pixel data.
-        vk::Format imageFormat;           //<  Vulkan format of the image data.
+        u16 width;                              //< Width of the image in pixels.
+        u16 height;                             //< Height of the image in pixels.
+        int channelCount;                       //< Number of color channels in the image.
+        astl::vector<std::string> channelNames; //< Names of the channels (e.g., "Red", "Green", "Blue").
+        u16 bytesPerChannel;                    //< Number of bytes per channel.
+        void *pixels;                           //< Pointer to the raw pixel data.
+        vk::Format imageFormat;                 //<  Vulkan format of the image data.
 
         /**
          * @brief Calculates the size of the image in bytes.
@@ -146,7 +146,7 @@ namespace assets
          * @param stream The binary stream to read from.
          * @return A pointer to the created `Image2D` block.
          */
-        virtual meta::Block *readFromStream(BinStream &stream) override;
+        virtual meta::Block *readFromStream(astl::bin_stream &stream) override;
 
         /**
          * @brief Writes an `Image2D` block to a binary stream.
@@ -156,7 +156,7 @@ namespace assets
          * @param stream The binary stream to write to.
          * @param block The `Image2D` block to write.
          */
-        virtual void writeToStream(BinStream &stream, meta::Block *block) override;
+        virtual void writeToStream(astl::bin_stream &stream, meta::Block *block) override;
     };
 
     /**
@@ -171,9 +171,9 @@ namespace assets
         using Spaces = rectpack2D::empty_spaces<false, rectpack2D::default_empty_spaces>;
         using Rect = rectpack2D::output_rect_t<Spaces>;
 
-        u16 discardStep;                         //< Step used for discarding textures in the atlas.
-        DArray<std::shared_ptr<Image2D>> images; //< Collection of images contained in the atlas
-        std::vector<Rect> packData;              //< Data about the placement of images within the atlas.
+        u16 discardStep;                               //< Step used for discarding textures in the atlas.
+        astl::vector<std::shared_ptr<Image2D>> images; //< Collection of images contained in the atlas
+        std::vector<Rect> packData;                    //< Data about the placement of images within the atlas.
 
         /**
          * @brief Returns the signature of the atlas block.
@@ -207,7 +207,7 @@ namespace assets
          * @param stream The binary stream to read from.
          * @return A pointer to the created `Atlas` block.
          */
-        virtual meta::Block *readFromStream(BinStream &stream) override;
+        virtual meta::Block *readFromStream(astl::bin_stream &stream) override;
 
         /**
          * @brief Writes an `Atlas` block to a binary stream.
@@ -217,7 +217,7 @@ namespace assets
          * @param stream The binary stream to write to.
          * @param block The `Atlas` block to write.
          */
-        virtual void writeToStream(BinStream &stream, meta::Block *block) override;
+        virtual void writeToStream(astl::bin_stream &stream, meta::Block *block) override;
     };
 
     /// @brief Pack atlas
@@ -242,8 +242,8 @@ namespace assets
      */
     struct Material final : meta::Block
     {
-        DArray<Asset> textures; //< Array of texture assets associated with the material.
-        MaterialNode albedo;    //< Albedo property of the material, defining its base color.
+        astl::vector<Asset> textures; //< Array of texture assets associated with the material.
+        MaterialNode albedo;          //< Albedo property of the material, defining its base color.
 
         /**
          * @brief Returns the signature of the material block.
@@ -274,7 +274,7 @@ namespace assets
          * @param stream The binary stream to read from.
          * @return A pointer to the created `Material` block.
          */
-        virtual meta::Block *readFromStream(BinStream &stream) override;
+        virtual meta::Block *readFromStream(astl::bin_stream &stream) override;
 
         /**
          * @brief Writes a `Material` block to a binary stream.
@@ -284,7 +284,7 @@ namespace assets
          * @param stream The binary stream to write to.
          * @param block The `Material` block to write.
          */
-        virtual void writeToStream(BinStream &stream, meta::Block *block) override;
+        virtual void writeToStream(astl::bin_stream &stream, meta::Block *block) override;
     };
 
     /**
@@ -311,7 +311,7 @@ namespace assets
             glm::vec3 scale = glm::vec3(1.0f);    //< Scale of the object in the scene.
         } transform;
 
-        DArray<std::shared_ptr<meta::Block>> meta; //< Metadata associated with the object.
+        astl::vector<std::shared_ptr<meta::Block>> meta; //< Metadata associated with the object.
     };
 
     /**
@@ -322,9 +322,9 @@ namespace assets
      */
     struct Scene final : meta::Block
     {
-        DArray<Object> objects;  //< Array of objects present in the scene.
-        DArray<Asset> textures;  //< Array of texture assets used in the scene.
-        DArray<Asset> materials; //< Array of material assets used in the scene.
+        astl::vector<Object> objects;  //< Array of objects present in the scene.
+        astl::vector<Asset> textures;  //< Array of texture assets used in the scene.
+        astl::vector<Asset> materials; //< Array of material assets used in the scene.
 
         /**
          * @brief Returns the signature of the scene block.
@@ -355,7 +355,7 @@ namespace assets
          * @param stream The binary stream to read from.
          * @return A pointer to the created `Scene` block.
          */
-        virtual meta::Block *readFromStream(BinStream &stream) override;
+        virtual meta::Block *readFromStream(astl::bin_stream &stream) override;
 
         /**
          * @brief Writes a `Scene` block to a binary stream.
@@ -365,7 +365,7 @@ namespace assets
          * @param stream The binary stream to write to.
          * @param block The `Scene` block to write.
          */
-        virtual void writeToStream(BinStream &stream, meta::Block *block) override;
+        virtual void writeToStream(astl::bin_stream &stream, meta::Block *block) override;
     };
     namespace mesh
     {
@@ -400,17 +400,17 @@ namespace assets
         // Represents a group of vertices.
         struct VertexGroup
         {
-            DArray<u32> vertices; ///< List of indices pointing to vertices in this group.
-            DArray<u32> faces;    ///< List of indices of faces that reference these vertices.
+            astl::vector<u32> vertices; ///< List of indices pointing to vertices in this group.
+            astl::vector<u32> faces;    ///< List of indices of faces that reference these vertices.
         };
 
         // Represents a polygon face.
         struct Face
         {
-            DArray<VertexRef> vertices; ///< List of vertex references that define the face.
-            glm::vec3 normal;           ///< The normal vector of the face
-            u32 startID;                ///< Starting index in the index buffer for this face.
-            u16 indexCount;             ///< Number of indices that define this face.
+            astl::vector<VertexRef> vertices; ///< List of vertex references that define the face.
+            glm::vec3 normal;                 ///< The normal vector of the face
+            u32 startID;                      ///< Starting index in the index buffer for this face.
+            u16 indexCount;                   ///< Number of indices that define this face.
         };
 
         // Represents an axis-aligned bounding box.
@@ -423,11 +423,11 @@ namespace assets
         // Represents a 3D mesh model.
         struct Model
         {
-            DArray<Vertex> vertices;    ///< Array containing all vertices of the model.
-            DArray<VertexGroup> groups; ///< Array containing groups of vertices.
-            DArray<Face> faces;         ///< Array of faces that make up the model.
-            DArray<u32> indices;        ///< Array of indices for rendering the model.
-            AABB aabb;                  ///< Axis-aligned bounding box that encloses the model.
+            astl::vector<Vertex> vertices;    ///< Array containing all vertices of the model.
+            astl::vector<VertexGroup> groups; ///< Array containing groups of vertices.
+            astl::vector<Face> faces;         ///< Array of faces that make up the model.
+            astl::vector<u32> indices;        ///< Array of indices for rendering the model.
+            AABB aabb;                        ///< Axis-aligned bounding box that encloses the model.
         };
 
         namespace bary
@@ -448,8 +448,8 @@ namespace assets
         // Represents a block of mesh data.
         struct MeshBlock : meta::Block
         {
-            Model model;                       ///< The 3D model data contained in this mesh block.
-            DArray<bary::Vertex> baryVertices; ///< Array of vertices with barycentric coordinates.
+            Model model;                             ///< The 3D model data contained in this mesh block.
+            astl::vector<bary::Vertex> baryVertices; ///< Array of vertices with barycentric coordinates.
 
             /**
              * @brief Returns the signature of the block.
@@ -466,24 +466,25 @@ namespace assets
              * @param stream The binary stream to read from.
              * @return A pointer to the read block.
              */
-            virtual meta::Block *readFromStream(BinStream &stream) override;
+            virtual meta::Block *readFromStream(astl::bin_stream &stream) override;
 
             /**
              * @brief Writes a block to the binary stream.
              * @param stream The binary stream to write to.
              * @param block The block to write.
              */
-            virtual void writeToStream(BinStream &stream, meta::Block *block) override;
+            virtual void writeToStream(astl::bin_stream &stream, meta::Block *block) override;
         };
     } // namespace mesh
 
     // Represents material information as an asset block.
     struct MaterialInfo final : meta::Block
     {
-        std::string name;        //< The name of the material.
-        DArray<u32> assignments; //< List of assignments IDs related to the material.
+        std::string name;              //< The name of the material.
+        astl::vector<u32> assignments; //< List of assignments IDs related to the material.
 
-        MaterialInfo(const std::string &name = "", DArray<u32> assignments = {}) : name(name), assignments(assignments)
+        MaterialInfo(const std::string &name = "", astl::vector<u32> assignments = {})
+            : name(name), assignments(assignments)
         {
         }
 
@@ -509,7 +510,7 @@ namespace assets
          * @param stream The binary stream to write to.
          * @param block The block to write.
          */
-        virtual void writeToStream(BinStream &stream, meta::Block *block) override
+        virtual void writeToStream(astl::bin_stream &stream, meta::Block *block) override
         {
             MaterialInfo *material = static_cast<MaterialInfo *>(block);
             stream.write(material->name)
@@ -522,7 +523,7 @@ namespace assets
          * @param stream The binary stream to read from.
          * @return A pointer to the read block.
          */
-        virtual meta::Block *readFromStream(BinStream &stream) override;
+        virtual meta::Block *readFromStream(astl::bin_stream &stream) override;
     };
 
     /**
@@ -534,8 +535,8 @@ namespace assets
      */
     struct MatRangeAssignAtrr : meta::Block
     {
-        u32 matID;         //< The ID of the material being assigned.
-        DArray<u32> faces; //< Array of face indices to which the material is assigned.
+        u32 matID;               //< The ID of the material being assigned.
+        astl::vector<u32> faces; //< Array of face indices to which the material is assigned.
 
         /**
          * @brief Returns the signature of the block.
@@ -563,7 +564,7 @@ namespace assets
          * @param stream The binary stream to write to.
          * @param block The `MatRangeAssignAtrr` block to write.
          */
-        virtual void writeToStream(BinStream &stream, meta::Block *block) override;
+        virtual void writeToStream(astl::bin_stream &stream, meta::Block *block) override;
 
         /**
          * @brief Reads a `MatRangeAssignAtrr` block from a binary stream.
@@ -573,7 +574,7 @@ namespace assets
          * @param stream The binary stream to read from.
          * @return A pointer to the created `MatRangeAssignAtrr` block.
          */
-        virtual meta::Block *readFromStream(BinStream &stream) override;
+        virtual meta::Block *readFromStream(astl::bin_stream &stream) override;
     };
     /**
      * Structure representing a Target asset.
@@ -623,7 +624,7 @@ namespace assets
          * @param stream The binary stream to write to.
          * @param block The `Target` block to write.
          */
-        virtual void writeToStream(BinStream &stream, meta::Block *block) override;
+        virtual void writeToStream(astl::bin_stream &stream, meta::Block *block) override;
 
         /**
          * @brief Reads a `Target` block from a binary stream.
@@ -633,7 +634,7 @@ namespace assets
          * @param stream The binary stream to read from.
          * @return A pointer to the created `Target` block.
          */
-        virtual meta::Block *readFromStream(BinStream &stream) override;
+        virtual meta::Block *readFromStream(astl::bin_stream &stream) override;
     };
 
     // The Library class serves as a storage for other assets. These assets can either be embedded or act as
@@ -643,10 +644,10 @@ namespace assets
         // Represents a node in the file structure of the asset library.
         struct Node
         {
-            std::string name;      // Name of the file node.
-            DArray<Node> children; // Child nodes of this file node.
-            bool isFolder{false};  // Flag indicating if the node is a folder.
-            Asset asset;           // The asset associated with the node.
+            std::string name;            // Name of the file node.
+            astl::vector<Node> children; // Child nodes of this file node.
+            bool isFolder{false};        // Flag indicating if the node is a folder.
+            Asset asset;                 // The asset associated with the node.
         } fileTree;
 
         /**
@@ -681,7 +682,7 @@ namespace assets
          * @param stream The binary stream to write to.
          * @param block The `Library` block to write.
          */
-        virtual void writeToStream(BinStream &stream, meta::Block *block) override;
+        virtual void writeToStream(astl::bin_stream &stream, meta::Block *block) override;
 
         /**
          * @brief Reads a `Library` block from a binary stream.
@@ -691,7 +692,7 @@ namespace assets
          * @param stream The binary stream to read from.
          * @return A pointer to the created `Library` block.
          */
-        virtual meta::Block *readFromStream(BinStream &stream) override;
+        virtual meta::Block *readFromStream(astl::bin_stream &stream) override;
     };
 
     /**
@@ -705,8 +706,8 @@ namespace assets
     class APPLIB_API Registry
     {
     public:
-        using iterator = HashMap<std::string, std::shared_ptr<Library>>::iterator;
-        using const_iterator = HashMap<std::string, std::shared_ptr<Library>>::const_iterator;
+        using iterator = astl::hashmap<std::string, std::shared_ptr<Library>>::iterator;
+        using const_iterator = astl::hashmap<std::string, std::shared_ptr<Library>>::const_iterator;
 
         /**
          * @brief Get the asset libraries size
@@ -737,61 +738,65 @@ namespace assets
         void init(const std::filesystem::path &assetsPath);
 
     private:
-        HashMap<std::string, std::shared_ptr<Library>> _libraries;
+        astl::hashmap<std::string, std::shared_ptr<Library>> _libraries;
     };
 } // namespace assets
 
-template <>
-inline BinStream &BinStream::write(const assets::Asset::Header &src)
+namespace astl
 {
-    u8 data = (static_cast<u8>(src.type) & 0x3F) | (static_cast<u8>(src.compressed) << 6);
-    return write(data);
-}
 
-template <>
-BinStream &BinStream::read(assets::Asset::Header &dst);
+    template <>
+    inline bin_stream &bin_stream::write(const assets::Asset::Header &src)
+    {
+        u8 data = (static_cast<u8>(src.type) & 0x3F) | (static_cast<u8>(src.compressed) << 6);
+        return write(data);
+    }
 
-template <>
-BinStream &BinStream::write(const DArray<std::shared_ptr<meta::Block>> &meta);
+    template <>
+    bin_stream &bin_stream::read(assets::Asset::Header &dst);
 
-template <>
-BinStream &BinStream::read(DArray<std::shared_ptr<meta::Block>> &meta);
+    template <>
+    bin_stream &bin_stream::write(const astl::vector<std::shared_ptr<meta::Block>> &meta);
 
-template <>
-inline BinStream &BinStream::write(const assets::Asset &asset)
-{
-    return write(asset.header).write(asset.blocks);
-}
+    template <>
+    bin_stream &bin_stream::read(astl::vector<std::shared_ptr<meta::Block>> &meta);
 
-template <>
-inline BinStream &BinStream::read(assets::Asset &dst)
-{
-    return read(dst.header).read(dst.blocks);
-}
+    template <>
+    inline bin_stream &bin_stream::write(const assets::Asset &asset)
+    {
+        return write(asset.header).write(asset.blocks);
+    }
 
-template <>
-inline BinStream &BinStream::write(const DArray<assets::Asset> &assets)
-{
-    write(static_cast<u16>(assets.size()));
-    for (auto &asset : assets) write(asset);
-    return *this;
-}
+    template <>
+    inline bin_stream &bin_stream::read(assets::Asset &dst)
+    {
+        return read(dst.header).read(dst.blocks);
+    }
 
-template <>
-BinStream &BinStream::read(DArray<assets::Asset> &dst);
+    template <>
+    inline bin_stream &bin_stream::write(const astl::vector<assets::Asset> &assets)
+    {
+        write(static_cast<u16>(assets.size()));
+        for (auto &asset : assets) write(asset);
+        return *this;
+    }
 
-template <>
-inline BinStream &BinStream::write(const assets::MaterialNode &src)
-{
-    u16 data = src.textured ? ((1 << 15) | (src.textureID & 0x7FFF)) : 0;
-    return write(src.rgb).write(data);
-}
+    template <>
+    bin_stream &bin_stream::read(astl::vector<assets::Asset> &dst);
 
-template <>
-BinStream &BinStream::read(assets::MaterialNode &dst);
+    template <>
+    inline bin_stream &bin_stream::write(const assets::MaterialNode &src)
+    {
+        u16 data = src.textured ? ((1 << 15) | (src.textureID & 0x7FFF)) : 0;
+        return write(src.rgb).write(data);
+    }
 
-template <>
-BinStream &BinStream::write(const assets::Library::Node &node);
+    template <>
+    bin_stream &bin_stream::read(assets::MaterialNode &dst);
 
-template <>
-BinStream &BinStream::read(assets::Library::Node &node);
+    template <>
+    bin_stream &bin_stream::write(const assets::Library::Node &node);
+
+    template <>
+    bin_stream &bin_stream::read(assets::Library::Node &node);
+} // namespace astl
