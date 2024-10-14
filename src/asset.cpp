@@ -1,8 +1,8 @@
 #include <assets/asset.hpp>
 #include <assets/utils.hpp>
-#include <core/hash.hpp>
 #include <core/io/file.hpp>
 #include <core/log.hpp>
+#include <core/std/hash.hpp>
 
 namespace assets
 {
@@ -42,15 +42,23 @@ namespace assets
         }
         else
             dstStream.write(src.data() + src.pos(), src.size() - src.pos());
-        asset.checksum = crc32(0, src.data(), src.size());
+        asset.checksum = astl::crc32(0, src.data(), src.size());
         return io::file::writeBinary(path.string(), dstStream.data(), dstStream.size());
     }
 
     bool Asset::save(const std::filesystem::path &path, int compression)
     {
-        astl::bin_stream stream{};
-        stream.write(blocks);
-        return saveAsset(*this, path, stream, compression);
+        try
+        {
+            astl::bin_stream stream{};
+            stream.write(blocks);
+            return saveAsset(*this, path, stream, compression);
+        }
+        catch (const std::exception &e)
+        {
+            logError("Asset write error: %s", e.what());
+            return false;
+        }
     }
 
     bool loadAsset(const std::filesystem::path &path, astl::bin_stream &dst, Asset::Header &header)
@@ -92,7 +100,7 @@ namespace assets
             if (!loadAsset(path, stream, asset->header)) return nullptr;
             stream.read(asset->blocks);
             if (asset->blocks.begin() == asset->blocks.end()) return nullptr;
-            asset->checksum = crc32(0, stream.data(), stream.size());
+            asset->checksum = astl::crc32(0, stream.data(), stream.size());
             return asset;
         }
         catch (std::exception &e)
@@ -223,15 +231,7 @@ namespace assets
         auto scene = static_cast<Scene *>(block);
         // Objects
         stream.write(static_cast<u16>(scene->objects.size()));
-        for (const auto &object : scene->objects)
-        {
-            stream.write(object.name);
-            // Transform
-            stream.write(object.transform.position).write(object.transform.rotation).write(object.transform.scale);
-
-            // Meta
-            stream.write(object.meta);
-        }
+        for (const auto &object : scene->objects) stream.write(object.name).write(object.meta);
 
         // Textures
         stream.write(scene->textures).write(scene->materials);
@@ -243,14 +243,7 @@ namespace assets
         u16 objectCount;
         stream.read(objectCount);
         scene->objects.resize(objectCount);
-        for (auto &object : scene->objects)
-        {
-            stream.read(object.name);
-            // Transform
-            stream.read(object.transform.position).read(object.transform.rotation).read(object.transform.scale);
-            // Meta
-            stream.read(object.meta);
-        }
+        for (auto &object : scene->objects) stream.read(object.name).read(object.meta);
         stream.read(scene->textures).read(scene->materials);
         return scene;
     }
@@ -371,6 +364,9 @@ namespace assets
 
             // AABB
             stream.write(model.aabb.min).write(model.aabb.max);
+
+            // Transform
+            stream.write(mesh->transform.position).write(mesh->transform.rotation).write(mesh->transform.scale);
         }
 
         meta::Block *MeshStream::readFromStream(astl::bin_stream &stream)

@@ -296,21 +296,7 @@ namespace assets
      */
     struct Object
     {
-        std::string name; //< The name of the object.
-
-        /**
-         * @brief Holds transformation data for the object.
-         *
-         * This nested structure contains position, rotation, and scale information for
-         * transforming the object within the scene.
-         */
-        struct Transform
-        {
-            glm::vec3 position = glm::vec3(0.0f); //< Position of the object in the scene.
-            glm::vec3 rotation = glm::vec3(0.0f); //< Rotation of the object in the scene.
-            glm::vec3 scale = glm::vec3(1.0f);    //< Scale of the object in the scene.
-        } transform;
-
+        std::string name;                                //< The name of the object.
         astl::vector<std::shared_ptr<meta::Block>> meta; //< Metadata associated with the object.
     };
 
@@ -450,6 +436,12 @@ namespace assets
         {
             Model model;                             ///< The 3D model data contained in this mesh block.
             astl::vector<bary::Vertex> baryVertices; ///< Array of vertices with barycentric coordinates.
+            struct Transform                         ///< Transform data for the mesh block.
+            {
+                glm::vec3 position;
+                glm::vec3 rotation;
+                glm::vec3 scale;
+            } transform;
 
             /**
              * @brief Returns the signature of the block.
