@@ -60,7 +60,7 @@ namespace assets
             bool compressed;           //< Indicates whether the asset data is compressed.
         } header;
         // Array of blocks, where the first block defines the asset type and the rest are metadata.
-        astl::vector<std::shared_ptr<meta::Block>> blocks;
+        astl::vector<astl::shared_ptr<meta::Block>> blocks;
         u32 checksum; //< Checksum of the asset for integrity validation.
 
         /**
@@ -68,7 +68,7 @@ namespace assets
          * @param path The path to the asset.
          * @return A shared pointer to the created asset.
          **/
-        static APPLIB_API std::shared_ptr<Asset> readFromFile(const std::filesystem::path &path);
+        static APPLIB_API astl::shared_ptr<Asset> readFromFile(const std::filesystem::path &path);
 
         /**
          * @brief Saves the asset to a file.
@@ -130,36 +130,6 @@ namespace assets
     };
 
     /**
-     * @brief Stream handler for reading and writing `Image2D` blocks.
-     *
-     * This class provides the functionality to read `Image2D` blocks from a binary stream
-     * and write them back. It implements the `meta::Stream` interface to handle stream operations.
-     */
-    class APPLIB_API Image2DStream : public meta::Stream
-    {
-    public:
-        /**
-         * @brief Reads an `Image2D` block from a binary stream.
-         *
-         * This method reads data from the provided stream and constructs an `Image2D` object.
-         *
-         * @param stream The binary stream to read from.
-         * @return A pointer to the created `Image2D` block.
-         */
-        virtual meta::Block *readFromStream(astl::bin_stream &stream) override;
-
-        /**
-         * @brief Writes an `Image2D` block to a binary stream.
-         *
-         * This method serializes the `Image2D` block into the provided binary stream.
-         *
-         * @param stream The binary stream to write to.
-         * @param block The `Image2D` block to write.
-         */
-        virtual void writeToStream(astl::bin_stream &stream, meta::Block *block) override;
-    };
-
-    /**
      * @brief Represents an atlas image block, derived from `Image2D`.
      *
      * The `Atlas` structure extends `Image2D` to support texture atlases. It includes
@@ -172,7 +142,7 @@ namespace assets
         using Rect = rectpack2D::output_rect_t<Spaces>;
 
         u16 discardStep;                               //< Step used for discarding textures in the atlas.
-        astl::vector<std::shared_ptr<Image2D>> images; //< Collection of images contained in the atlas
+        astl::vector<astl::shared_ptr<Image2D>> images; //< Collection of images contained in the atlas
         std::vector<Rect> packData;                    //< Data about the placement of images within the atlas.
 
         /**
@@ -188,36 +158,6 @@ namespace assets
         Atlas() = default;
 
         Atlas(const Image2D &image) : Image2D(image), discardStep(0) {}
-    };
-
-    /**
-     * @brief Stream handler for reading and writing `Atlas` blocks.
-     *
-     * This class provides the functionality to read `Atlas` blocks from a binary stream
-     * and write them back. It implements the `meta::Stream` interface to handle stream operations.
-     */
-    class APPLIB_API AtlasStream final : public meta::Stream
-    {
-    public:
-        /**
-         * @brief Reads an `Atlas` block from a binary stream.
-         *
-         * This method reads data from the provided stream and constructs an `Atlas` object.
-         *
-         * @param stream The binary stream to read from.
-         * @return A pointer to the created `Atlas` block.
-         */
-        virtual meta::Block *readFromStream(astl::bin_stream &stream) override;
-
-        /**
-         * @brief Writes an `Atlas` block to a binary stream.
-         *
-         * This method serializes the `Atlas` block into the provided binary stream.
-         *
-         * @param stream The binary stream to write to.
-         * @param block The `Atlas` block to write.
-         */
-        virtual void writeToStream(astl::bin_stream &stream, meta::Block *block) override;
     };
 
     /// @brief Pack atlas
@@ -257,37 +197,6 @@ namespace assets
     };
 
     /**
-     * @brief Stream handler for reading and writing `Material` blocks.
-     *
-     * This class provides the functionality to read `Material` blocks from a binary stream
-     * and write them back. It implements the `meta::Stream` interface to handle stream operations
-     * specific to material assets.
-     */
-    class APPLIB_API MaterialStream final : public meta::Stream
-    {
-    public:
-        /**
-         * @brief Reads a `Material` block from a binary stream.
-         *
-         * This method reads data from the provided stream and constructs a `Material` object.
-         *
-         * @param stream The binary stream to read from.
-         * @return A pointer to the created `Material` block.
-         */
-        virtual meta::Block *readFromStream(astl::bin_stream &stream) override;
-
-        /**
-         * @brief Writes a `Material` block to a binary stream.
-         *
-         * This method serializes the `Material` block into the provided binary stream.
-         *
-         * @param stream The binary stream to write to.
-         * @param block The `Material` block to write.
-         */
-        virtual void writeToStream(astl::bin_stream &stream, meta::Block *block) override;
-    };
-
-    /**
      * @brief Represents a generic object within a scene.
      *
      * The `Object` structure contains basic information about an object, such as its name
@@ -296,8 +205,9 @@ namespace assets
      */
     struct Object
     {
+        u64 id;                                          //< Unique identifier for the object.
         std::string name;                                //< The name of the object.
-        astl::vector<std::shared_ptr<meta::Block>> meta; //< Metadata associated with the object.
+        astl::vector<astl::shared_ptr<meta::Block>> meta; //< Metadata associated with the object.
     };
 
     /**
@@ -323,36 +233,6 @@ namespace assets
         virtual const u32 signature() const override { return sign_block::scene; }
     };
 
-    /**
-     * @brief Stream handler for reading and writing `Scene` blocks.
-     *
-     * This class provides the functionality to read `Scene` blocks from a binary stream
-     * and write them back. It implements the `meta::Stream` interface to handle stream operations
-     * specific to scene assets.
-     */
-    class APPLIB_API SceneStream final : public meta::Stream
-    {
-    public:
-        /**
-         * @brief Reads a `Scene` block from a binary stream.
-         *
-         * This method reads data from the provided stream and constructs a `Scene` object.
-         *
-         * @param stream The binary stream to read from.
-         * @return A pointer to the created `Scene` block.
-         */
-        virtual meta::Block *readFromStream(astl::bin_stream &stream) override;
-
-        /**
-         * @brief Writes a `Scene` block to a binary stream.
-         *
-         * This method serializes the `Scene` block into the provided binary stream.
-         *
-         * @param stream The binary stream to write to.
-         * @param block The `Scene` block to write.
-         */
-        virtual void writeToStream(astl::bin_stream &stream, meta::Block *block) override;
-    };
     namespace mesh
     {
         /// Representation of a unique vertex per vertex attributes - Position, UV coordinates, Normals, etc.
@@ -449,34 +329,17 @@ namespace assets
              */
             virtual const u32 signature() const { return sign_block::mesh; }
         };
-        // Stream class for reading and writing mesh data.
-        class APPLIB_API MeshStream final : public meta::Stream
-        {
-        public:
-            /**
-             * @brief Reads a block from the binary stream.
-             * @param stream The binary stream to read from.
-             * @return A pointer to the read block.
-             */
-            virtual meta::Block *readFromStream(astl::bin_stream &stream) override;
-
-            /**
-             * @brief Writes a block to the binary stream.
-             * @param stream The binary stream to write to.
-             * @param block The block to write.
-             */
-            virtual void writeToStream(astl::bin_stream &stream, meta::Block *block) override;
-        };
     } // namespace mesh
 
     // Represents material information as an asset block.
     struct MaterialInfo final : meta::Block
     {
+        u64 id;
         std::string name;              //< The name of the material.
         astl::vector<u32> assignments; //< List of assignments IDs related to the material.
 
-        MaterialInfo(const std::string &name = "", astl::vector<u32> assignments = {})
-            : name(name), assignments(assignments)
+        MaterialInfo(u64 id = 0, const std::string &name = "", astl::vector<u32> assignments = {})
+            : id(id), name(name), assignments(assignments)
         {
         }
 
@@ -488,37 +351,6 @@ namespace assets
     };
 
     /**
-     * @brief Stream handler for reading and writing `MaterialInfo` blocks.
-     *
-     * This class provides the functionality to read `MaterialInfo` blocks from a binary stream
-     * and write them back. It implements the `meta::Stream` interface to handle stream operations
-     * specific to material information assets.
-     */
-    class APPLIB_API MaterialInfoStream final : public meta::Stream
-    {
-    public:
-        /**
-         * @brief Writes a block to the binary stream.
-         * @param stream The binary stream to write to.
-         * @param block The block to write.
-         */
-        virtual void writeToStream(astl::bin_stream &stream, meta::Block *block) override
-        {
-            MaterialInfo *material = static_cast<MaterialInfo *>(block);
-            stream.write(material->name)
-                .write(static_cast<u32>(material->assignments.size()))
-                .write(material->assignments.data(), material->assignments.size());
-        }
-
-        /**
-         * @brief Reads a block from the binary stream.
-         * @param stream The binary stream to read from.
-         * @return A pointer to the read block.
-         */
-        virtual meta::Block *readFromStream(astl::bin_stream &stream) override;
-    };
-
-    /**
      * @brief Represents material range assignment attributes as an asset block.
      *
      * The `MatRangeAssignAtrr` structure holds information about the assignment of materials
@@ -527,7 +359,7 @@ namespace assets
      */
     struct MatRangeAssignAtrr : meta::Block
     {
-        u32 matID;               //< The ID of the material being assigned.
+        u64 matID;               //< The ID of the material being assigned.
         astl::vector<u32> faces; //< Array of face indices to which the material is assigned.
 
         /**
@@ -537,37 +369,6 @@ namespace assets
         virtual const u32 signature() const { return sign_block::material_range_assign; }
     };
 
-    /**
-     * @brief Stream handler for reading and writing `MatRangeAssignAtrr` blocks.
-     *
-     * This class provides the functionality to read `MatRangeAssignAtrr` blocks from a binary stream
-     * and write them back. It implements the `meta::Stream` interface to handle stream operations
-     * specific to material range assignments.
-     */
-    class APPLIB_API MatRangeAssignStream final : public meta::Stream
-    {
-    public:
-        /**
-         * @brief Writes a `MatRangeAssignAtrr` block to a binary stream.
-         *
-         * This method serializes the `MatRangeAssignAtrr` block, writing its material ID and face indices
-         * to the provided binary stream.
-         *
-         * @param stream The binary stream to write to.
-         * @param block The `MatRangeAssignAtrr` block to write.
-         */
-        virtual void writeToStream(astl::bin_stream &stream, meta::Block *block) override;
-
-        /**
-         * @brief Reads a `MatRangeAssignAtrr` block from a binary stream.
-         *
-         * This method reads data from the provided stream and constructs a `MatRangeAssignAtrr` object.
-         *
-         * @param stream The binary stream to read from.
-         * @return A pointer to the created `MatRangeAssignAtrr` block.
-         */
-        virtual meta::Block *readFromStream(astl::bin_stream &stream) override;
-    };
     /**
      * Structure representing a Target asset.
      * The Target class represents a type of asset that doesn't store the resource itself but only
@@ -595,38 +396,6 @@ namespace assets
          * @return The signature of the block.
          */
         virtual const u32 signature() const { return sign_block::target; }
-    };
-
-    /**
-     * @brief Stream handler for reading and writing `Target` blocks.
-     *
-     * This class provides the functionality to read `Target` blocks from a binary stream
-     * and write them back. It implements the `meta::Stream` interface to handle stream operations
-     * specific to target assets.
-     */
-    class APPLIB_API TargetStream final : public meta::Stream
-    {
-    public:
-        /**
-         * @brief Writes a `Target` block to a binary stream.
-         *
-         * This method serializes the `Target` block, writing its address, header and checksum
-         * to the provided binary stream.
-         *
-         * @param stream The binary stream to write to.
-         * @param block The `Target` block to write.
-         */
-        virtual void writeToStream(astl::bin_stream &stream, meta::Block *block) override;
-
-        /**
-         * @brief Reads a `Target` block from a binary stream.
-         *
-         * This method reads data from the provided stream and constructs a `Target` object.
-         *
-         * @param stream The binary stream to read from.
-         * @return A pointer to the created `Target` block.
-         */
-        virtual meta::Block *readFromStream(astl::bin_stream &stream) override;
     };
 
     // The Library class serves as a storage for other assets. These assets can either be embedded or act as
@@ -657,37 +426,6 @@ namespace assets
     };
 
     /**
-     * @brief Stream handler for reading and writing `Library` blocks.
-     *
-     * This class provides the functionality to read `Library` blocks from a binary stream
-     * and write them back. It implements the `meta::Stream` interface to handle stream operations
-     * specific to library assets.
-     */
-    class APPLIB_API LibraryStream final : public meta::Stream
-    {
-    public:
-        /**
-         * @brief Writes a `Library` block to a binary stream.
-         *
-         * This method serializes the `Library` block, writing its file tree to the provided binary stream.
-         *
-         * @param stream The binary stream to write to.
-         * @param block The `Library` block to write.
-         */
-        virtual void writeToStream(astl::bin_stream &stream, meta::Block *block) override;
-
-        /**
-         * @brief Reads a `Library` block from a binary stream.
-         *
-         * This method reads data from the provided stream and constructs a `Library` object.
-         *
-         * @param stream The binary stream to read from.
-         * @return A pointer to the created `Library` block.
-         */
-        virtual meta::Block *readFromStream(astl::bin_stream &stream) override;
-    };
-
-    /**
      * Class responsible for managing asset libraries.
      *
      * The Manager class oversees and provides access to various asset libraries, allowing for efficient
@@ -698,22 +436,22 @@ namespace assets
     class APPLIB_API Registry
     {
     public:
-        using iterator = astl::hashmap<std::string, std::shared_ptr<Library>>::iterator;
-        using const_iterator = astl::hashmap<std::string, std::shared_ptr<Library>>::const_iterator;
+        using iterator = astl::hashmap<std::string, astl::shared_ptr<Library>>::iterator;
+        using const_iterator = astl::hashmap<std::string, astl::shared_ptr<Library>>::const_iterator;
 
         /**
          * @brief Get the asset libraries size
          */
         size_t size() const { return _libraries.size(); }
 
-        std::shared_ptr<Library> operator[](const std::string &name)
+        astl::shared_ptr<Library> operator[](const std::string &name)
         {
             auto it = _libraries.find(name);
             if (it == _libraries.end()) return nullptr;
             return it->second;
         }
 
-        std::shared_ptr<Library> operator[](const std::string &name) const
+        astl::shared_ptr<Library> operator[](const std::string &name) const
         {
             auto it = _libraries.find(name);
             if (it == _libraries.end()) return nullptr;
@@ -730,13 +468,57 @@ namespace assets
         void init(const std::filesystem::path &assetsPath);
 
     private:
-        astl::hashmap<std::string, std::shared_ptr<Library>> _libraries;
+        astl::hashmap<std::string, astl::shared_ptr<Library>> _libraries;
     };
+
+    namespace streams
+    {
+        APPLIB_API void writeImage2D(astl::bin_stream &stream, meta::Block *block);
+        APPLIB_API meta::Block *readImage2D(astl::bin_stream &stream);
+        constexpr meta::Stream image2D = {readImage2D, writeImage2D};
+
+        APPLIB_API meta::Block *readImageAtlas(astl::bin_stream &stream);
+        APPLIB_API void writeImageAtlas(astl::bin_stream &stream, meta::Block *block);
+        constexpr meta::Stream image_atlas = {readImageAtlas, writeImageAtlas};
+
+        APPLIB_API meta::Block *readMaterial(astl::bin_stream &stream);
+        APPLIB_API void writeMaterial(astl::bin_stream &stream, meta::Block *block);
+        constexpr meta::Stream material = {readMaterial, writeMaterial};
+
+        APPLIB_API meta::Block *readMaterialInfo(astl::bin_stream &stream);
+        inline void writeMaterialInfo(astl::bin_stream &stream, meta::Block *block)
+        {
+            MaterialInfo *material = static_cast<MaterialInfo *>(block);
+            stream.write(material->name)
+                .write(static_cast<u32>(material->assignments.size()))
+                .write(material->assignments.data(), material->assignments.size());
+        }
+        constexpr meta::Stream material_info = {readMaterialInfo, writeMaterialInfo};
+
+        APPLIB_API meta::Block *readMatRangeAssign(astl::bin_stream &stream);
+        APPLIB_API void writeMatRangeAssign(astl::bin_stream &stream, meta::Block *block);
+        constexpr meta::Stream mat_range_assign = {readMatRangeAssign, writeMatRangeAssign};
+
+        APPLIB_API meta::Block *readScene(astl::bin_stream &stream);
+        APPLIB_API void writeScene(astl::bin_stream &stream, meta::Block *block);
+        constexpr meta::Stream scene = {readScene, writeScene};
+
+        APPLIB_API meta::Block *readMesh(astl::bin_stream &stream);
+        APPLIB_API void writeMesh(astl::bin_stream &stream, meta::Block *block);
+        constexpr meta::Stream mesh = {readMesh, writeMesh};
+
+        APPLIB_API meta::Block *readTarget(astl::bin_stream &stream);
+        APPLIB_API void writeTarget(astl::bin_stream &stream, meta::Block *block);
+        constexpr meta::Stream target = {readTarget, writeTarget};
+
+        APPLIB_API meta::Block *readLibrary(astl::bin_stream &stream);
+        APPLIB_API void writeLibrary(astl::bin_stream &stream, meta::Block *block);
+        constexpr meta::Stream library= {readLibrary, writeLibrary};
+    } // namespace streams
 } // namespace assets
 
 namespace astl
 {
-
     template <>
     inline bin_stream &bin_stream::write(const assets::Asset::Header &src)
     {
@@ -748,10 +530,10 @@ namespace astl
     bin_stream &bin_stream::read(assets::Asset::Header &dst);
 
     template <>
-    bin_stream &bin_stream::write(const astl::vector<std::shared_ptr<meta::Block>> &meta);
+    APPLIB_API bin_stream &bin_stream::write(const astl::vector<astl::shared_ptr<meta::Block>> &meta);
 
     template <>
-    bin_stream &bin_stream::read(astl::vector<std::shared_ptr<meta::Block>> &meta);
+    APPLIB_API bin_stream &bin_stream::read(astl::vector<astl::shared_ptr<meta::Block>> &meta);
 
     template <>
     inline bin_stream &bin_stream::write(const assets::Asset &asset)

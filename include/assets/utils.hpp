@@ -146,9 +146,9 @@ namespace assets
          */
         APPLIB_API void *convertImage(const assets::Image2D &image, vk::Format dstFormat, int dstChannels);
 
-        APPLIB_API void filterMatAssignments(const astl::vector<std::shared_ptr<assets::MaterialInfo>> &matMeta,
-                                             const astl::vector<std::shared_ptr<assets::MatRangeAssignAtrr>> &assignes,
+        APPLIB_API void filterMatAssignments(const astl::vector<astl::shared_ptr<assets::MaterialInfo>> &matMeta,
+                                             const astl::vector<astl::shared_ptr<assets::MatRangeAssignAtrr>> &assignes,
                                              size_t faceCount, u32 defaultMatID,
-                                             astl::vector<std::shared_ptr<assets::MatRangeAssignAtrr>> &dst);
+                                             astl::vector<astl::shared_ptr<assets::MatRangeAssignAtrr>> &dst);
     } // namespace utils
 } // namespace assets

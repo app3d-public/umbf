@@ -173,11 +173,11 @@ namespace assets
             }
         }
 
-        void filterMatAssignments(const astl::vector<std::shared_ptr<MaterialInfo>> &matMeta,
-                                  const astl::vector<std::shared_ptr<MatRangeAssignAtrr>> &assignes, size_t faceCount,
-                                  u32 defaultMatID, astl::vector<std::shared_ptr<MatRangeAssignAtrr>> &dst)
+        void filterMatAssignments(const astl::vector<astl::shared_ptr<MaterialInfo>> &matMeta,
+                                  const astl::vector<astl::shared_ptr<MatRangeAssignAtrr>> &assignes, size_t faceCount,
+                                  u32 defaultMatID, astl::vector<astl::shared_ptr<MatRangeAssignAtrr>> &dst)
         {
-            auto defaultAssign = std::make_shared<assets::MatRangeAssignAtrr>();
+            auto defaultAssign = astl::make_shared<assets::MatRangeAssignAtrr>();
             defaultAssign->matID = defaultMatID;
             defaultAssign->faces.resize(faceCount);
             std::iota(defaultAssign->faces.begin(), defaultAssign->faces.end(), 0);
