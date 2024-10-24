@@ -9,7 +9,7 @@ namespace assets
         template <typename T>
         void fillColorPixelsImpl(const glm::vec4 &color, Image2D &imageInfo)
         {
-            T *data = (T *)scalable_malloc(imageInfo.imageSize());
+            T *data = (T *)astl::mem_allocator<std::byte>::allocate(imageInfo.imageSize());
             if (color[0] == color[1] && color[0] == color[2] && color[0] == color[3])
                 std::fill(data, data + imageInfo.imageSize(), color[0]);
             else

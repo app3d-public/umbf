@@ -48,7 +48,7 @@ namespace assets
         void *convertImageChannelBits(void *source, u64 size, int srcChannels, int dstChannels)
         {
             auto src = reinterpret_cast<S *>(source);
-            T *buffer = (T *)scalable_malloc(size * dstChannels / srcChannels);
+            T *buffer = (T *)astl::mem_allocator<std::byte>::allocate(size * dstChannels / srcChannels);
             f64 maxValue;
 
             if constexpr (std::is_floating_point<S>::value)

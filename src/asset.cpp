@@ -188,6 +188,7 @@ namespace astl
     {
         for (auto &block : meta)
         {
+            assert(block);
             auto *metaStream = meta::getStream(block->signature());
             if (metaStream)
             {

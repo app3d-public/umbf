@@ -45,7 +45,7 @@ namespace assets
         {
             Image2D *image = astl::alloc<Image2D>();
             readImageInfo(stream, image);
-            char *pixels = (char *)scalable_malloc(image->imageSize());
+            char *pixels = astl::alloc_n<char>(image->imageSize());
             stream.read(pixels, image->imageSize());
             image->pixels = (void *)pixels;
             return image;
@@ -84,7 +84,7 @@ namespace assets
                     .read(atlas->packData[i].x)
                     .read(atlas->packData[i].y);
             }
-            char *pixels = (char *)scalable_malloc(atlas->imageSize());
+            char *pixels = astl::alloc_n<char>(atlas->imageSize());
             stream.read(pixels, atlas->imageSize());
             atlas->pixels = (void *)pixels;
             return atlas;
