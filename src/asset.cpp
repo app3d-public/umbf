@@ -1,8 +1,8 @@
 #include <assets/asset.hpp>
 #include <assets/utils.hpp>
-#include <core/io/file.hpp>
+#include <astl/hash.hpp>
 #include <core/log.hpp>
-#include <core/std/hash.hpp>
+#include <io/file.hpp>
 
 namespace assets
 {
