@@ -144,6 +144,7 @@ namespace assets
         u16 discardStep;                               //< Step used for discarding textures in the atlas.
         astl::vector<astl::shared_ptr<Image2D>> images; //< Collection of images contained in the atlas
         std::vector<Rect> packData;                    //< Data about the placement of images within the atlas.
+        i16 padding;                                   //< Padding between images in the atlas.
 
         /**
          * @brief Returns the signature of the atlas block.

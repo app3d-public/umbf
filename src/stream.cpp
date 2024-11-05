@@ -56,17 +56,27 @@ namespace assets
             auto image = static_cast<Image2D *>(block);
             writeImageInfo(stream, image);
             auto atlas = static_cast<Atlas *>(block);
-            stream.write(atlas->discardStep).write(static_cast<u16>(atlas->packData.size()));
+            stream.write(atlas->discardStep).write(atlas->padding).write(static_cast<u16>(atlas->packData.size()));
             utils::fillColorPixels(glm::vec4(0.0f), *image);
+
             for (size_t i = 0; i < atlas->packData.size(); i++)
             {
                 if (!atlas->images[i]->pixels) throw std::runtime_error("Pixels cannot be null");
+
                 stream.write(atlas->packData[i].w)
                     .write(atlas->packData[i].h)
                     .write(atlas->packData[i].x)
                     .write(atlas->packData[i].y);
-                utils::copyPixelsToArea(*atlas->images[i], *image, atlas->packData[i]);
+
+                auto rect = atlas->packData[i];
+                rect.x += atlas->padding;
+                rect.y += atlas->padding;
+                rect.w -= 2 * atlas->padding;
+                rect.h -= 2 * atlas->padding;
+
+                utils::copyPixelsToArea(*atlas->images[i], *image, rect);
             }
+
             stream.write(reinterpret_cast<char *>(atlas->pixels), atlas->imageSize());
         }
 
@@ -75,7 +85,7 @@ namespace assets
             auto *atlas = astl::alloc<Atlas>();
             readImageInfo(stream, atlas);
             u16 packDataSize;
-            stream.read(atlas->discardStep).read(packDataSize);
+            stream.read(atlas->discardStep).read(atlas->padding).read(packDataSize);
             atlas->packData.resize(packDataSize);
             for (size_t i = 0; i < packDataSize; i++)
             {
@@ -83,6 +93,11 @@ namespace assets
                     .read(atlas->packData[i].h)
                     .read(atlas->packData[i].x)
                     .read(atlas->packData[i].y);
+
+                atlas->packData[i].x -= atlas->padding;
+                atlas->packData[i].y -= atlas->padding;
+                atlas->packData[i].w += 2 * atlas->padding;
+                atlas->packData[i].h += 2 * atlas->padding;
             }
             char *pixels = astl::alloc_n<char>(atlas->imageSize());
             stream.read(pixels, atlas->imageSize());
