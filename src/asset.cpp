@@ -215,7 +215,10 @@ namespace astl
             if (metaStream)
             {
                 astl::shared_ptr<meta::Block> block(metaStream->read(*this));
-                if (block) meta.push_back(block);
+                if (block)
+                    meta.push_back(block);
+                else
+                    logWarn("Failed to read meta block: 0x%08x", header.signature);
             }
             else
                 shift(header.blockSize);

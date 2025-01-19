@@ -63,17 +63,13 @@ namespace assets
             {
                 if (!atlas->images[i]->pixels) throw std::runtime_error("Pixels cannot be null");
 
-                stream.write(atlas->packData[i].w)
-                    .write(atlas->packData[i].h)
-                    .write(atlas->packData[i].x)
-                    .write(atlas->packData[i].y);
-
                 auto rect = atlas->packData[i];
                 rect.x += atlas->padding;
                 rect.y += atlas->padding;
                 rect.w -= 2 * atlas->padding;
                 rect.h -= 2 * atlas->padding;
 
+                stream.write(rect.w).write(rect.h).write(rect.x).write(rect.y);
                 utils::copyPixelsToArea(*atlas->images[i], *image, rect);
             }
 
@@ -93,11 +89,6 @@ namespace assets
                     .read(atlas->packData[i].h)
                     .read(atlas->packData[i].x)
                     .read(atlas->packData[i].y);
-
-                atlas->packData[i].x -= atlas->padding;
-                atlas->packData[i].y -= atlas->padding;
-                atlas->packData[i].w += 2 * atlas->padding;
-                atlas->packData[i].h += 2 * atlas->padding;
             }
             char *pixels = astl::alloc_n<char>(atlas->imageSize());
             stream.read(pixels, atlas->imageSize());
@@ -212,7 +203,6 @@ namespace assets
 
         void writeMesh(astl::bin_stream &stream, meta::Block *block)
         {
-
             mesh::MeshBlock *mesh = static_cast<mesh::MeshBlock *>(block);
             auto &model = mesh->model;
 
@@ -232,7 +222,7 @@ namespace assets
             }
 
             // Vertices
-            for (auto &vertex : model.vertices) stream.write(vertex.uv).write(vertex.normal);
+            for (auto &vertex : model.vertices) stream.write(vertex.pos).write(vertex.uv).write(vertex.normal);
 
             // Faces
             for (auto &face : model.faces)
@@ -284,7 +274,7 @@ namespace assets
             }
 
             // Vertices
-            for (auto &vertex : model.vertices) stream.read(vertex.uv).read(vertex.normal);
+            for (auto &vertex : model.vertices) stream.read(vertex.pos).read(vertex.uv).read(vertex.normal);
 
             // Faces
             size_t indexID = 0;
@@ -309,6 +299,8 @@ namespace assets
             // AABB
             stream.read(model.aabb.min).read(model.aabb.max);
 
+            // Transform
+            stream.read(mesh->transform.position).read(mesh->transform.rotation).read(mesh->transform.scale);
             return mesh;
         }
 
