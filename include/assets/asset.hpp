@@ -141,10 +141,10 @@ namespace assets
         using Spaces = rectpack2D::empty_spaces<false, rectpack2D::default_empty_spaces>;
         using Rect = rectpack2D::output_rect_t<Spaces>;
 
-        u16 discardStep;                               //< Step used for discarding textures in the atlas.
+        u16 discardStep;                                //< Step used for discarding textures in the atlas.
         astl::vector<astl::shared_ptr<Image2D>> images; //< Collection of images contained in the atlas
-        std::vector<Rect> packData;                    //< Data about the placement of images within the atlas.
-        i16 padding;                                   //< Padding between images in the atlas.
+        std::vector<Rect> packData;                     //< Data about the placement of images within the atlas.
+        i16 padding;                                    //< Padding between images in the atlas.
 
         /**
          * @brief Returns the signature of the atlas block.
@@ -206,8 +206,8 @@ namespace assets
      */
     struct Object
     {
-        u64 id;                                          //< Unique identifier for the object.
-        std::string name;                                //< The name of the object.
+        u64 id;                                           //< Unique identifier for the object.
+        std::string name;                                 //< The name of the object.
         astl::vector<astl::shared_ptr<meta::Block>> meta; //< Metadata associated with the object.
     };
 
@@ -476,15 +476,15 @@ namespace assets
     {
         APPLIB_API void writeImage2D(astl::bin_stream &stream, meta::Block *block);
         APPLIB_API meta::Block *readImage2D(astl::bin_stream &stream);
-        constexpr meta::Stream image2D = {readImage2D, writeImage2D};
+        inline meta::Stream image2D = {readImage2D, writeImage2D};
 
         APPLIB_API meta::Block *readImageAtlas(astl::bin_stream &stream);
         APPLIB_API void writeImageAtlas(astl::bin_stream &stream, meta::Block *block);
-        constexpr meta::Stream image_atlas = {readImageAtlas, writeImageAtlas};
+        inline meta::Stream image_atlas = {readImageAtlas, writeImageAtlas};
 
         APPLIB_API meta::Block *readMaterial(astl::bin_stream &stream);
         APPLIB_API void writeMaterial(astl::bin_stream &stream, meta::Block *block);
-        constexpr meta::Stream material = {readMaterial, writeMaterial};
+        inline meta::Stream material = {readMaterial, writeMaterial};
 
         APPLIB_API meta::Block *readMaterialInfo(astl::bin_stream &stream);
         inline void writeMaterialInfo(astl::bin_stream &stream, meta::Block *block)
@@ -494,27 +494,27 @@ namespace assets
                 .write(static_cast<u32>(material->assignments.size()))
                 .write(material->assignments.data(), material->assignments.size());
         }
-        constexpr meta::Stream material_info = {readMaterialInfo, writeMaterialInfo};
+        inline meta::Stream material_info = {readMaterialInfo, writeMaterialInfo};
 
         APPLIB_API meta::Block *readMatRangeAssign(astl::bin_stream &stream);
         APPLIB_API void writeMatRangeAssign(astl::bin_stream &stream, meta::Block *block);
-        constexpr meta::Stream mat_range_assign = {readMatRangeAssign, writeMatRangeAssign};
+        inline meta::Stream mat_range_assign = {readMatRangeAssign, writeMatRangeAssign};
 
         APPLIB_API meta::Block *readScene(astl::bin_stream &stream);
         APPLIB_API void writeScene(astl::bin_stream &stream, meta::Block *block);
-        constexpr meta::Stream scene = {readScene, writeScene};
+        inline meta::Stream scene = {readScene, writeScene};
 
         APPLIB_API meta::Block *readMesh(astl::bin_stream &stream);
         APPLIB_API void writeMesh(astl::bin_stream &stream, meta::Block *block);
-        constexpr meta::Stream mesh = {readMesh, writeMesh};
+        inline meta::Stream mesh = {readMesh, writeMesh};
 
         APPLIB_API meta::Block *readTarget(astl::bin_stream &stream);
         APPLIB_API void writeTarget(astl::bin_stream &stream, meta::Block *block);
-        constexpr meta::Stream target = {readTarget, writeTarget};
+        inline meta::Stream target = {readTarget, writeTarget};
 
         APPLIB_API meta::Block *readLibrary(astl::bin_stream &stream);
         APPLIB_API void writeLibrary(astl::bin_stream &stream, meta::Block *block);
-        constexpr meta::Stream library= {readLibrary, writeLibrary};
+        inline meta::Stream library = {readLibrary, writeLibrary};
     } // namespace streams
 } // namespace assets
 
