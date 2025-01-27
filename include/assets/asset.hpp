@@ -1,5 +1,6 @@
 #pragma once
 
+#include <astl/hash.hpp>
 #include <core/meta.hpp>
 #include <filesystem>
 #include <finders_interface.h>
