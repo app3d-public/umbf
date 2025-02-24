@@ -208,18 +208,9 @@ namespace assets
 
             // Sizes
             stream.write(static_cast<u32>(model.vertices.size()))
-                .write(static_cast<u32>(model.groups.size()))
+                .write(static_cast<u32>(model.group_count))
                 .write(static_cast<u32>(model.faces.size()))
                 .write(static_cast<u32>(model.indices.size()));
-
-            // Groups
-            for (auto &group : model.groups)
-            {
-                stream.write(model.vertices[group.vertices.front()].pos).write(static_cast<u32>(group.vertices.size()));
-                stream.write(group.vertices.data(), group.vertices.size());
-                stream.write(static_cast<u32>(group.faces.size()));
-                stream.write(group.faces.data(), group.faces.size());
-            }
 
             // Vertices
             for (auto &vertex : model.vertices) stream.write(vertex.pos).write(vertex.uv).write(vertex.normal);
@@ -238,11 +229,13 @@ namespace assets
             auto barycentric = pack(mesh->baryVertices);
             stream.write(barycentric.data(), barycentric.size());
 
-            // AABB
-            stream.write(model.aabb.min).write(model.aabb.max);
-
-            // Transform
-            stream.write(mesh->transform.position).write(mesh->transform.rotation).write(mesh->transform.scale);
+            // Other meta info
+            stream.write(model.aabb.min)
+                .write(model.aabb.max)
+                .write(mesh->transform.position)
+                .write(mesh->transform.rotation)
+                .write(mesh->transform.scale)
+                .write(mesh->normalsAngle);
         }
 
         meta::Block *readMesh(astl::bin_stream &stream)
@@ -253,25 +246,10 @@ namespace assets
             u32 vCount, vgCount, fCount, iCount;
             stream.read(vCount).read(vgCount).read(fCount).read(iCount);
             model.vertices.resize(vCount);
-            model.groups.resize(vgCount);
+            model.group_count = vgCount;
             model.faces.resize(fCount);
             model.indices.resize(iCount);
             mesh->baryVertices.resize(iCount);
-
-            // Groups
-            for (auto &group : model.groups)
-            {
-                glm::vec3 pos;
-                stream.read(pos);
-                u32 grVCount;
-                stream.read(grVCount);
-                group.vertices.resize(grVCount);
-                stream.read(group.vertices.data(), grVCount);
-                u32 grFCount;
-                stream.read(grFCount);
-                group.faces.resize(grFCount);
-                stream.read(group.faces.data(), grFCount);
-            }
 
             // Vertices
             for (auto &vertex : model.vertices) stream.read(vertex.pos).read(vertex.uv).read(vertex.normal);
@@ -296,11 +274,13 @@ namespace assets
             for (int i = 0; i < iCount; i++)
                 mesh->baryVertices[i] = {model.vertices[model.indices[i]].pos, barycentric[i]};
 
-            // AABB
-            stream.read(model.aabb.min).read(model.aabb.max);
-
-            // Transform
-            stream.read(mesh->transform.position).read(mesh->transform.rotation).read(mesh->transform.scale);
+            // Other meta info
+            stream.read(model.aabb.min)
+                .read(model.aabb.max)
+                .read(mesh->transform.position)
+                .read(mesh->transform.rotation)
+                .read(mesh->transform.scale)
+                .read(mesh->normalsAngle);
             return mesh;
         }
 

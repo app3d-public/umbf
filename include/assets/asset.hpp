@@ -1,5 +1,7 @@
 #pragma once
 
+#include <astl/hash.hpp>
+#include <core/math.hpp>
 #include <core/meta.hpp>
 #include <filesystem>
 #include <finders_interface.h>
@@ -237,6 +239,7 @@ namespace assets
     namespace mesh
     {
         /// Representation of a unique vertex per vertex attributes - Position, UV coordinates, Normals, etc.
+        /// Indexed structure for rendering purpose
         struct Vertex
         {
             /// @brief Position
@@ -272,29 +275,42 @@ namespace assets
         };
 
         // Represents a polygon face.
+        template <typename Ref>
         struct Face
         {
-            astl::vector<VertexRef> vertices; ///< List of vertex references that define the face.
-            glm::vec3 normal;                 ///< The normal vector of the face
-            u32 startID;                      ///< Starting index in the index buffer for this face.
-            u16 indexCount;                   ///< Number of indices that define this face.
+            astl::vector<Ref> vertices; ///< List of vertex references that define the face.
+            glm::vec3 normal;           ///< The normal vector of the face
+
+            Face(const astl::vector<Ref> &verts = {}, const glm::vec3 &norm = {}) : vertices(verts), normal(norm) {}
+            Face(std::initializer_list<Ref> verts, const glm::vec3 &norm = {}) : vertices(verts), normal(norm) {}
         };
 
-        // Represents an axis-aligned bounding box.
-        struct AABB
+        struct IndexedFace : Face<VertexRef>
         {
-            alignas(16) glm::vec3 min = glm::vec3(std::numeric_limits<f32>::max());
-            alignas(16) glm::vec3 max = glm::vec3(std::numeric_limits<f32>::lowest());
+            u32 startID;    ///< Starting index in the index buffer for this face.
+            u16 indexCount; ///< Number of indices that define this face.
+
+            IndexedFace(const astl::vector<VertexRef> &vertices = {}, const glm::vec3 &norm = {0.0f, 0.0f, 0.0f},
+                        u32 sid = 0, u16 icount = 0)
+                : Face(vertices, norm), startID(sid), indexCount(icount)
+            {
+            }
+            IndexedFace(std::initializer_list<VertexRef> verts, const glm::vec3 &norm, u32 sid, u16 icount)
+                : Face<VertexRef>(verts, norm), startID(sid), indexCount(icount)
+            {
+            }
         };
+
+        using AABB = math::min_max<glm::vec3>;
 
         // Represents a 3D mesh model.
         struct Model
         {
-            astl::vector<Vertex> vertices;    ///< Array containing all vertices of the model.
-            astl::vector<VertexGroup> groups; ///< Array containing groups of vertices.
-            astl::vector<Face> faces;         ///< Array of faces that make up the model.
-            astl::vector<u32> indices;        ///< Array of indices for rendering the model.
-            AABB aabb;                        ///< Axis-aligned bounding box that encloses the model.
+            astl::vector<Vertex> vertices;   ///< Array containing all vertices of the model.
+            u32 group_count;                 ///< Size of the vertex group array.
+            astl::vector<IndexedFace> faces; ///< Array of faces that make up the model.
+            astl::vector<u32> indices;       ///< Array of indices for rendering the model.
+            AABB aabb;               ///< Axis-aligned bounding box that encloses the model.
         };
 
         namespace bary
@@ -312,17 +328,20 @@ namespace assets
             };
         }; // namespace bary
 
+        struct Transform
+        {
+            glm::vec3 position = {0.0f, 0.0f, 0.0f};
+            glm::vec3 rotation = {0.0f, 0.0f, 0.0f};
+            glm::vec3 scale = {1.0f, 1.0f, 1.0f};
+        };
+
         // Represents a block of mesh data.
         struct MeshBlock : meta::Block
         {
             Model model;                             ///< The 3D model data contained in this mesh block.
             astl::vector<bary::Vertex> baryVertices; ///< Array of vertices with barycentric coordinates.
-            struct Transform                         ///< Transform data for the mesh block.
-            {
-                glm::vec3 position;
-                glm::vec3 rotation;
-                glm::vec3 scale;
-            } transform;
+            Transform transform;                     ///< Transformation information for the mesh.
+            f32 normalsAngle = 0.0f;                 ///< 0: hard normals, otherwise soft normals using specified angle
 
             /**
              * @brief Returns the signature of the block.
@@ -337,9 +356,9 @@ namespace assets
     {
         u64 id;
         std::string name;              //< The name of the material.
-        astl::vector<u32> assignments; //< List of assignments IDs related to the material.
+        astl::vector<u64> assignments; //< List of assignments objects IDs related to the material.
 
-        MaterialInfo(u64 id = 0, const std::string &name = "", astl::vector<u32> assignments = {})
+        MaterialInfo(u64 id = 0, const std::string &name = "", astl::vector<u64> assignments = {})
             : id(id), name(name), assignments(assignments)
         {
         }
@@ -575,3 +594,19 @@ namespace astl
     template <>
     bin_stream &bin_stream::read(assets::Library::Node &node);
 } // namespace astl
+
+namespace std
+{
+    template <>
+    struct hash<assets::mesh::Vertex>
+    {
+        size_t operator()(const assets::mesh::Vertex &vertex) const
+        {
+            size_t seed = 0;
+            hash_combine(seed, vertex.pos);
+            hash_combine(seed, vertex.uv);
+            hash_combine(seed, vertex.normal);
+            return seed;
+        }
+    };
+} // namespace std

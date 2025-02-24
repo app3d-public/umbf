@@ -9,15 +9,18 @@ add_files(${PROJECT_NAME} "${CMAKE_CURRENT_SOURCE_DIR}/src")
 add_library(${PROJECT_NAME} SHARED ${SOURCE_FILES})
 set_target_properties(${PROJECT_NAME} PROPERTIES CXX_VISIBILITY_PRESET hidden)
 target_compile_definitions(${PROJECT_NAME} PRIVATE -DAPPLIB_BUILD)
-target_include_directories(${PROJECT_NAME} PRIVATE $<TARGET_PROPERTY:app3d-core,INCLUDE_DIRECTORIES>)
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/modules/3rd-party/rectpack2D/src")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/include/")
-
+target_include_directories(${PROJECT_NAME} PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/"
+    "${CMAKE_CURRENT_SOURCE_DIR}/modules/3rd-party/rectpack2D/src/")
 target_link_libraries(${PROJECT_NAME} PRIVATE app3d-core)
 
 if(USE_ASAN)
     target_link_options(${PROJECT_NAME} PUBLIC -fsanitize=address -fno-omit-frame-pointer)
 endif(USE_ASAN)
+
+if(WIN32)
+    gen_manifest_lib(${PROJECT_NAME} ${PROJECT_VERSION})
+endif()
 
 set_target_properties(${PROJECT_NAME}
     PROPERTIES

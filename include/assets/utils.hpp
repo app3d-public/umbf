@@ -146,9 +146,14 @@ namespace assets
          */
         APPLIB_API void *convertImage(const assets::Image2D &image, vk::Format dstFormat, int dstChannels);
 
-        APPLIB_API void filterMatAssignments(const astl::vector<astl::shared_ptr<assets::MaterialInfo>> &matMeta,
-                                             const astl::vector<astl::shared_ptr<assets::MatRangeAssignAtrr>> &assignes,
-                                             size_t faceCount, u32 defaultMatID,
+        APPLIB_API void filterMatAssignments(const astl::vector<astl::shared_ptr<assets::MatRangeAssignAtrr>> &assignes,
+                                             size_t faceCount, u64 defaultID,
                                              astl::vector<astl::shared_ptr<assets::MatRangeAssignAtrr>> &dst);
+
+        namespace mesh
+        {
+            using namespace assets::mesh;
+            APPLIB_API void fillVertexGroups(const Model &model, astl::vector<VertexGroup> &groups);
+        } // namespace mesh
     } // namespace utils
 } // namespace assets

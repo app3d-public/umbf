@@ -173,12 +173,11 @@ namespace assets
             }
         }
 
-        void filterMatAssignments(const astl::vector<astl::shared_ptr<MaterialInfo>> &matMeta,
-                                  const astl::vector<astl::shared_ptr<MatRangeAssignAtrr>> &assignes, size_t faceCount,
-                                  u32 defaultMatID, astl::vector<astl::shared_ptr<MatRangeAssignAtrr>> &dst)
+        void filterMatAssignments(const astl::vector<astl::shared_ptr<MatRangeAssignAtrr>> &assignes, size_t faceCount,
+                                  u64 defaultID, astl::vector<astl::shared_ptr<MatRangeAssignAtrr>> &dst)
         {
             auto defaultAssign = astl::make_shared<assets::MatRangeAssignAtrr>();
-            defaultAssign->matID = defaultMatID;
+            defaultAssign->matID = defaultID;
             defaultAssign->faces.resize(faceCount);
             std::iota(defaultAssign->faces.begin(), defaultAssign->faces.end(), 0);
 
@@ -190,14 +189,28 @@ namespace assets
 
                 for (const auto &assign : assignes)
                     for (const auto &face : assign->faces) faceIncluded[face] = true;
-
                 defaultAssign->faces.erase(std::remove_if(defaultAssign->faces.begin(), defaultAssign->faces.end(),
                                                           [&](u32 index) { return faceIncluded[index]; }),
                                            defaultAssign->faces.end());
-
                 if (!defaultAssign->faces.empty()) dst.push_back(defaultAssign);
                 for (const auto &assign : assignes) dst.push_back(assign);
             }
         }
+
+        namespace mesh
+        {
+            void fillVertexGroups(const Model &model, astl::vector<VertexGroup> &groups)
+            {
+                groups.resize(model.group_count);
+                for (int f = 0; f < model.faces.size(); ++f)
+                {
+                    for (const auto &vref : model.faces[f].vertices)
+                    {
+                        groups[vref.group].faces.push_back(f);
+                        groups[vref.group].vertices.push_back(vref.vertex);
+                    }
+                }
+            }
+        } // namespace mesh
     } // namespace utils
 } // namespace assets
