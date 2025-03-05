@@ -128,7 +128,7 @@ namespace assets
          *
          * @return The signature of the block.
          */
-        virtual const u32 signature() const override { return sign_block::image2D; }
+        virtual u32 signature() const override { return sign_block::image2D; }
     };
 
     /**
@@ -156,7 +156,7 @@ namespace assets
          *
          * @return The signature of the block.
          */
-        virtual const u32 signature() const override { return sign_block::image_atlas; }
+        virtual u32 signature() const override { return sign_block::image_atlas; }
 
         Atlas() = default;
 
@@ -196,7 +196,7 @@ namespace assets
          *
          * @return The signature of the block.
          */
-        virtual const u32 signature() const override { return sign_block::material; }
+        virtual u32 signature() const override { return sign_block::material; }
     };
 
     /**
@@ -233,7 +233,7 @@ namespace assets
          *
          * @return The signature of the block.
          */
-        virtual const u32 signature() const override { return sign_block::scene; }
+        virtual u32 signature() const override { return sign_block::scene; }
     };
 
     namespace mesh
@@ -347,7 +347,7 @@ namespace assets
              * @brief Returns the signature of the block.
              * @return The signature of the block.
              */
-            virtual const u32 signature() const { return sign_block::mesh; }
+            virtual u32 signature() const override { return sign_block::mesh; }
         };
     } // namespace mesh
 
@@ -367,7 +367,7 @@ namespace assets
          * @brief Returns the signature of the block.
          * @return The signature of the block.
          */
-        virtual const u32 signature() const { return sign_block::material_info; }
+        virtual u32 signature() const override { return sign_block::material_info; }
     };
 
     /**
@@ -386,7 +386,7 @@ namespace assets
          * @brief Returns the signature of the block.
          * @return The signature of the block.
          */
-        virtual const u32 signature() const { return sign_block::material_range_assign; }
+        virtual u32 signature() const override { return sign_block::material_range_assign; }
     };
 
     /**
@@ -415,7 +415,7 @@ namespace assets
          * @brief Returns the signature of the block.
          * @return The signature of the block.
          */
-        virtual const u32 signature() const { return sign_block::target; }
+        virtual u32 signature() const override { return sign_block::target; }
     };
 
     // The Library class serves as a storage for other assets. These assets can either be embedded or act as
@@ -435,7 +435,7 @@ namespace assets
          * @brief Returns the signature of the block.
          * @return The signature of the block.
          */
-        virtual const u32 signature() const { return sign_block::library; }
+        virtual u32 signature() const override { return sign_block::library; }
 
         /**
          * @brief Retrieves a list of assets associated with a specified path.
