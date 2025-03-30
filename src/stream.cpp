@@ -1,11 +1,13 @@
+#include <acul/log.hpp>
 #include <assets/asset.hpp>
 #include <assets/utils.hpp>
+#include <umbf/version.h>
 
-namespace assets
+namespace umbf
 {
     namespace streams
     {
-        void writeImageInfo(astl::bin_stream &stream, Image2D *image2D)
+        void writeImageInfo(acul::bin_stream &stream, Image2D *image2D)
         {
             stream.write(image2D->width).write(image2D->height).write(static_cast<u16>(image2D->channelCount));
             u8 channelNamesSize = image2D->channelNames.size();
@@ -14,15 +16,15 @@ namespace assets
             stream.write(image2D->bytesPerChannel).write(static_cast<u8>(image2D->imageFormat));
         }
 
-        void writeImage2D(astl::bin_stream &stream, meta::Block *block)
+        void writeImage2D(acul::bin_stream &stream, acul::meta::block *block)
         {
             auto image = static_cast<Image2D *>(block);
             writeImageInfo(stream, image);
-            if (!image->pixels) throw std::runtime_error("Pixels cannot be null");
+            if (!image->pixels) throw acul::runtime_error("Pixels cannot be null");
             stream.write(reinterpret_cast<char *>(image->pixels), image->imageSize());
         }
 
-        void readImageInfo(astl::bin_stream &stream, Image2D *image2D)
+        void readImageInfo(acul::bin_stream &stream, Image2D *image2D)
         {
             stream.read(image2D->width)
                 .read(image2D->height)
@@ -31,7 +33,7 @@ namespace assets
             stream.read(channelListSize);
             for (size_t i = 0; i < channelListSize; i++)
             {
-                std::string chan;
+                acul::string chan;
                 stream.read(chan);
                 image2D->channelNames.push_back(chan);
             }
@@ -41,45 +43,26 @@ namespace assets
             image2D->imageFormat = static_cast<vk::Format>(imageFormat);
         }
 
-        meta::Block *readImage2D(astl::bin_stream &stream)
+        acul::meta::block *readImage2D(acul::bin_stream &stream)
         {
-            Image2D *image = astl::alloc<Image2D>();
+            Image2D *image = acul::alloc<Image2D>();
             readImageInfo(stream, image);
-            char *pixels = astl::alloc_n<char>(image->imageSize());
+            char *pixels = acul::alloc_n<char>(image->imageSize());
             stream.read(pixels, image->imageSize());
             image->pixels = (void *)pixels;
             return image;
         }
 
-        void writeImageAtlas(astl::bin_stream &stream, meta::Block *block)
+        void writeImageAtlas(acul::bin_stream &stream, acul::meta::block *block)
         {
-            auto image = static_cast<Image2D *>(block);
-            writeImageInfo(stream, image);
             auto atlas = static_cast<Atlas *>(block);
             stream.write(atlas->discardStep).write(atlas->padding).write(static_cast<u16>(atlas->packData.size()));
-            utils::fillColorPixels(glm::vec4(0.0f), *image);
-
-            for (size_t i = 0; i < atlas->packData.size(); i++)
-            {
-                if (!atlas->images[i]->pixels) throw std::runtime_error("Pixels cannot be null");
-
-                auto rect = atlas->packData[i];
-                rect.x += atlas->padding;
-                rect.y += atlas->padding;
-                rect.w -= 2 * atlas->padding;
-                rect.h -= 2 * atlas->padding;
-
-                stream.write(rect.w).write(rect.h).write(rect.x).write(rect.y);
-                utils::copyPixelsToArea(*atlas->images[i], *image, rect);
-            }
-
-            stream.write(reinterpret_cast<char *>(atlas->pixels), atlas->imageSize());
+            for (auto &rect : atlas->packData) stream.write(rect.w).write(rect.h).write(rect.x).write(rect.y);
         }
 
-        meta::Block *readImageAtlas(astl::bin_stream &stream)
+        acul::meta::block *readImageAtlas(acul::bin_stream &stream)
         {
-            auto *atlas = astl::alloc<Atlas>();
-            readImageInfo(stream, atlas);
+            auto *atlas = acul::alloc<Atlas>();
             u16 packDataSize;
             stream.read(atlas->discardStep).read(atlas->padding).read(packDataSize);
             atlas->packData.resize(packDataSize);
@@ -90,26 +73,23 @@ namespace assets
                     .read(atlas->packData[i].x)
                     .read(atlas->packData[i].y);
             }
-            char *pixels = astl::alloc_n<char>(atlas->imageSize());
-            stream.read(pixels, atlas->imageSize());
-            atlas->pixels = (void *)pixels;
             return atlas;
         }
 
-        void writeMaterial(astl::bin_stream &stream, meta::Block *block)
+        void writeMaterial(acul::bin_stream &stream, acul::meta::block *block)
         {
             auto material = static_cast<Material *>(block);
             stream.write(material->textures).write(material->albedo);
         }
 
-        meta::Block *readMaterial(astl::bin_stream &stream)
+        acul::meta::block *readMaterial(acul::bin_stream &stream)
         {
-            Material *material = astl::alloc<Material>();
+            Material *material = acul::alloc<Material>();
             stream.read(material->textures).read(material->albedo);
             return material;
         }
 
-        void writeScene(astl::bin_stream &stream, meta::Block *block)
+        void writeScene(acul::bin_stream &stream, acul::meta::block *block)
         {
             auto scene = static_cast<Scene *>(block);
             // Objects
@@ -120,9 +100,9 @@ namespace assets
             stream.write(scene->textures).write(scene->materials);
         }
 
-        meta::Block *readScene(astl::bin_stream &stream)
+        acul::meta::block *readScene(acul::bin_stream &stream)
         {
-            Scene *scene = astl::alloc<Scene>();
+            Scene *scene = acul::alloc<Scene>();
             u16 objectCount;
             stream.read(objectCount);
             scene->objects.resize(objectCount);
@@ -147,10 +127,10 @@ namespace assets
             bary.z = static_cast<f32>(binary & 0x1);
         }
 
-        astl::vector<u64> pack(const astl::vector<mesh::bary::Vertex> &barycentric)
+        acul::vector<u64> pack(const acul::vector<mesh::bary::Vertex> &barycentric)
         {
             size_t packSize = (barycentric.size() * 3 + 63) / 64;
-            astl::vector<u64> pack64(packSize, 0);
+            acul::vector<u64> pack64(packSize, 0);
             int bid = 0, offset = 0, i = 0;
             while (bid < packSize)
             {
@@ -170,9 +150,9 @@ namespace assets
             }
             return pack64;
         }
-        astl::vector<glm::vec3> unpack(const astl::vector<u64> &src, size_t size)
+        acul::vector<glm::vec3> unpack(const acul::vector<u64> &src, size_t size)
         {
-            astl::vector<glm::vec3> barycentric(size);
+            acul::vector<glm::vec3> barycentric(size);
             int bid = 0, offset = 0, i = 0;
             while (bid < size)
             {
@@ -201,7 +181,7 @@ namespace assets
             return barycentric;
         }
 
-        void writeMesh(astl::bin_stream &stream, meta::Block *block)
+        void writeMesh(acul::bin_stream &stream, acul::meta::block *block)
         {
             mesh::MeshBlock *mesh = static_cast<mesh::MeshBlock *>(block);
             auto &model = mesh->model;
@@ -238,9 +218,9 @@ namespace assets
                 .write(mesh->normalsAngle);
         }
 
-        meta::Block *readMesh(astl::bin_stream &stream)
+        acul::meta::block *readMesh(acul::bin_stream &stream)
         {
-            mesh::MeshBlock *mesh = astl::alloc<mesh::MeshBlock>();
+            mesh::MeshBlock *mesh = acul::alloc<mesh::MeshBlock>();
             auto &model = mesh->model;
             // Sizes
             u32 vCount, vgCount, fCount, iCount;
@@ -268,9 +248,9 @@ namespace assets
             }
 
             // Barycentrics
-            astl::vector<u64> baryPack((iCount * 3 + 63) / 64);
+            acul::vector<u64> baryPack((iCount * 3 + 63) / 64);
             stream.read(reinterpret_cast<char *>(baryPack.data()), baryPack.size() * sizeof(u64));
-            astl::vector<glm::vec3> barycentric = unpack(baryPack, iCount);
+            acul::vector<glm::vec3> barycentric = unpack(baryPack, iCount);
             for (int i = 0; i < iCount; i++)
                 mesh->baryVertices[i] = {model.vertices[model.indices[i]].pos, barycentric[i]};
 
@@ -284,9 +264,9 @@ namespace assets
             return mesh;
         }
 
-        meta::Block *readMaterialInfo(astl::bin_stream &stream)
+        acul::meta::block *readMaterialInfo(acul::bin_stream &stream)
         {
-            MaterialInfo *block = astl::alloc<MaterialInfo>();
+            MaterialInfo *block = acul::alloc<MaterialInfo>();
             u32 assignSize;
             stream.read(block->id).read(block->name).read(assignSize);
             block->assignments.resize(assignSize);
@@ -294,7 +274,7 @@ namespace assets
             return block;
         }
 
-        void writeMatRangeAssign(astl::bin_stream &stream, meta::Block *block)
+        void writeMatRangeAssign(acul::bin_stream &stream, acul::meta::block *block)
         {
             MatRangeAssignAtrr *assignment = static_cast<MatRangeAssignAtrr *>(block);
             stream.write(assignment->matID)
@@ -302,9 +282,9 @@ namespace assets
                 .write(assignment->faces.data(), assignment->faces.size());
         }
 
-        meta::Block *readMatRangeAssign(astl::bin_stream &stream)
+        acul::meta::block *readMatRangeAssign(acul::bin_stream &stream)
         {
-            MatRangeAssignAtrr *block = astl::alloc<MatRangeAssignAtrr>();
+            MatRangeAssignAtrr *block = acul::alloc<MatRangeAssignAtrr>();
             u32 faceSize;
             stream.read(block->matID).read(faceSize);
             block->faces.resize(faceSize);
@@ -312,39 +292,30 @@ namespace assets
             return block;
         }
 
-        void writeTarget(astl::bin_stream &stream, meta::Block *block)
+        void writeTarget(acul::bin_stream &stream, acul::meta::block *block)
         {
             auto target = static_cast<Target *>(block);
-            u8 headerData = (static_cast<u8>(target->header.type) & 0x3F) |                             // Type
-                            (static_cast<u8>(target->header.compressed) << 6) |                         // Compressed
-                            (static_cast<u8>(target->addr.proto == Target::Addr::Proto::Network) << 7); // Proto
-            stream.write(headerData).write(target->addr.url).write(target->checksum);
+            stream.write(target->header).write(target->url).write(target->checksum);
         }
 
-        meta::Block *readTarget(astl::bin_stream &stream)
+        acul::meta::block *readTarget(acul::bin_stream &stream)
         {
-            Target *target = astl::alloc<Target>();
-            u8 headerData;
-            stream.read(headerData);
-            target->header.type = static_cast<assets::Type>(headerData & 0x3F);
-            target->header.compressed = (headerData >> 6) & 0x1;
-            target->addr.proto =
-                (headerData & 0x80) ? Target::Addr::Proto::Network : Target::Addr::Proto::File; // Proto
-            stream.read(target->addr.url).read(target->checksum);
+            Target *target = acul::alloc<Target>();
+            stream.read(target->header).read(target->url).read(target->checksum);
             return target;
         }
 
-        void writeLibrary(astl::bin_stream &stream, meta::Block *block)
+        void writeLibrary(acul::bin_stream &stream, acul::meta::block *block)
         {
             auto library = static_cast<Library *>(block);
             stream.write(library->fileTree);
         }
 
-        meta::Block *readLibrary(astl::bin_stream &stream)
+        acul::meta::block *readLibrary(acul::bin_stream &stream)
         {
-            Library *library = astl::alloc<Library>();
+            Library *library = acul::alloc<Library>();
             stream.read(library->fileTree);
             return library;
         }
     } // namespace streams
-} // namespace assets
+} // namespace umbf

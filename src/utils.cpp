@@ -1,15 +1,15 @@
+#include <acul/log.hpp>
 #include <assets/utils.hpp>
-#include <core/log.hpp>
 #include <numeric>
 
-namespace assets
+namespace umbf
 {
     namespace utils
     {
         template <typename T>
         void fillColorPixelsImpl(const glm::vec4 &color, Image2D &imageInfo)
         {
-            T *data = (T *)astl::mem_allocator<std::byte>::allocate(imageInfo.imageSize());
+            T *data = (T *)acul::mem_allocator<std::byte>::allocate(imageInfo.imageSize());
             if (color[0] == color[1] && color[0] == color[2] && color[0] == color[3])
                 std::fill(data, data + imageInfo.imageSize(), color[0]);
             else
@@ -77,7 +77,7 @@ namespace assets
         }
 
         template <typename T>
-        void copyPixelsToAreaImpl(Image2D &src, const Image2D &dst, const Atlas::Rect &rect)
+        void copyPixelsToAreaImpl(const Image2D &src, Image2D &dst, const Atlas::Rect &rect)
         {
             const T *pSrc = reinterpret_cast<const T *>(src.pixels);
             T *pDst = reinterpret_cast<T *>(dst.pixels);
@@ -86,12 +86,12 @@ namespace assets
                     memcpy(pDst + ((rect.y + y) * dst.width + rect.x) * dst.channelCount,
                            pSrc + (y * rect.w) * dst.channelCount, rect.w * dst.channelCount);
             else
-                throw std::runtime_error("Dst area is out of image bounds");
+                throw acul::runtime_error("Dst area is out of image bounds");
         }
 
-        void copyPixelsToArea(Image2D &src, const Image2D &dst, const Atlas::Rect &rect)
+        void copyPixelsToArea(const Image2D &src, Image2D &dst, const Atlas::Rect &rect)
         {
-            if (src.imageFormat != dst.imageFormat) throw std::runtime_error("Image format mismatch");
+            if (src.imageFormat != dst.imageFormat) throw acul::runtime_error("Image format mismatch");
             switch (dst.imageFormat)
             {
                 case vk::Format::eR8G8B8Unorm:
@@ -142,7 +142,7 @@ namespace assets
             }
         }
 
-        void *convertImage(const assets::Image2D &image, vk::Format dstFormat, int dstChannels)
+        void *convertImage(const Image2D &image, vk::Format dstFormat, int dstChannels)
         {
             switch (image.imageFormat)
             {
@@ -173,10 +173,10 @@ namespace assets
             }
         }
 
-        void filterMatAssignments(const astl::vector<astl::shared_ptr<MatRangeAssignAtrr>> &assignes, size_t faceCount,
-                                  u64 defaultID, astl::vector<astl::shared_ptr<MatRangeAssignAtrr>> &dst)
+        void filterMatAssignments(const acul::vector<acul::shared_ptr<MatRangeAssignAtrr>> &assignes, size_t faceCount,
+                                  u64 defaultID, acul::vector<acul::shared_ptr<MatRangeAssignAtrr>> &dst)
         {
-            auto defaultAssign = astl::make_shared<assets::MatRangeAssignAtrr>();
+            auto defaultAssign = acul::make_shared<MatRangeAssignAtrr>();
             defaultAssign->matID = defaultID;
             defaultAssign->faces.resize(faceCount);
             std::iota(defaultAssign->faces.begin(), defaultAssign->faces.end(), 0);
@@ -185,7 +185,7 @@ namespace assets
                 dst.push_back(defaultAssign);
             else
             {
-                astl::vector<bool> faceIncluded(faceCount, false);
+                acul::vector<bool> faceIncluded(faceCount, false);
 
                 for (const auto &assign : assignes)
                     for (const auto &face : assign->faces) faceIncluded[face] = true;
@@ -199,7 +199,7 @@ namespace assets
 
         namespace mesh
         {
-            void fillVertexGroups(const Model &model, astl::vector<VertexGroup> &groups)
+            void fillVertexGroups(const Model &model, acul::vector<VertexGroup> &groups)
             {
                 groups.resize(model.group_count);
                 for (int f = 0; f < model.faces.size(); ++f)
@@ -213,4 +213,4 @@ namespace assets
             }
         } // namespace mesh
     } // namespace utils
-} // namespace assets
+} // namespace umbf

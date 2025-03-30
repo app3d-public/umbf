@@ -4,7 +4,7 @@
 #include <oneapi/tbb/parallel_for.h>
 #include "asset.hpp"
 
-namespace assets
+namespace umbf
 {
     namespace utils
     {
@@ -29,10 +29,10 @@ namespace assets
          * @param src The source image information containing the pixel data to be copied.
          * @param dst The destination image information where the pixel data will be copied.
          * @param rect The rectangular area in the destination image to which the pixel data will be copied.
-         * @throws std::runtime_error if the image formats of the source and destination images do not match
+         * @throws acul::runtime_error if the image formats of the source and destination images do not match
          *         or if the specified rectangular area is out of the bounds of the destination image.
          */
-        APPLIB_API void copyPixelsToArea(Image2D &src, const Image2D &dst, const Atlas::Rect &rect);
+        APPLIB_API void copyPixelsToArea(const Image2D &src, Image2D &dst, const Atlas::Rect &rect);
 
         /**
          * @brief A template function to convert the bit depth of an image from one type to another
@@ -48,7 +48,7 @@ namespace assets
         void *convertImageChannelBits(void *source, u64 size, int srcChannels, int dstChannels)
         {
             auto src = reinterpret_cast<S *>(source);
-            T *buffer = (T *)astl::mem_allocator<std::byte>::allocate(size * dstChannels / srcChannels);
+            T *buffer = (T *)acul::mem_allocator<std::byte>::allocate(size * dstChannels / srcChannels);
             f64 maxValue;
 
             if constexpr (std::is_floating_point<S>::value)
@@ -144,16 +144,16 @@ namespace assets
          * @return  A new buffer is dynamically allocated for the converted image data based on the specified
          * destination format and channel configuration.
          */
-        APPLIB_API void *convertImage(const assets::Image2D &image, vk::Format dstFormat, int dstChannels);
+        APPLIB_API void *convertImage(const Image2D &image, vk::Format dstFormat, int dstChannels);
 
-        APPLIB_API void filterMatAssignments(const astl::vector<astl::shared_ptr<assets::MatRangeAssignAtrr>> &assignes,
+        APPLIB_API void filterMatAssignments(const acul::vector<acul::shared_ptr<MatRangeAssignAtrr>> &assignes,
                                              size_t faceCount, u64 defaultID,
-                                             astl::vector<astl::shared_ptr<assets::MatRangeAssignAtrr>> &dst);
+                                             acul::vector<acul::shared_ptr<MatRangeAssignAtrr>> &dst);
 
         namespace mesh
         {
-            using namespace assets::mesh;
-            APPLIB_API void fillVertexGroups(const Model &model, astl::vector<VertexGroup> &groups);
+            using namespace umbf::mesh;
+            APPLIB_API void fillVertexGroups(const Model &model, acul::vector<VertexGroup> &groups);
         } // namespace mesh
     } // namespace utils
-} // namespace assets
+} // namespace umbf
