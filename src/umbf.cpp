@@ -1,7 +1,7 @@
 #include <acul/io/file.hpp>
 #include <acul/log.hpp>
-#include <assets/asset.hpp>
-#include <assets/utils.hpp>
+#include <umbf/umbf.hpp>
+#include <umbf/utils.hpp>
 
 namespace umbf
 {

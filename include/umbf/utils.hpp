@@ -2,7 +2,7 @@
 
 #include <glm/glm.hpp>
 #include <oneapi/tbb/parallel_for.h>
-#include "asset.hpp"
+#include "umbf.hpp"
 
 namespace umbf
 {
