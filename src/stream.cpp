@@ -1,6 +1,6 @@
 #include <acul/log.hpp>
-#include <assets/asset.hpp>
-#include <assets/utils.hpp>
+#include <umbf/umbf.hpp>
+#include <umbf/utils.hpp>
 #include <umbf/version.h>
 
 namespace umbf

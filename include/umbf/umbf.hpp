@@ -310,7 +310,7 @@ namespace umbf
             }
         };
 
-        using AABB = math::min_max<glm::vec3>;
+        using AABB = acul::math::min_max<glm::vec3>;
 
         // Represents a 3D mesh model.
         struct Model

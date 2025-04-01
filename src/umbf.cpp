@@ -227,8 +227,8 @@ namespace acul
         while (_pos < _data.size())
         {
             acul::meta::header header;
-            read(header.blockSize);
-            if (header.blockSize == 0ULL) break;
+            read(header.block_size);
+            if (header.block_size == 0ULL) break;
 
             read(header.signature);
             auto *metaStream = meta::get_stream(header.signature);
@@ -241,7 +241,7 @@ namespace acul
                     logWarn("Failed to read meta block: 0x%08x", header.signature);
             }
             else
-                shift(header.blockSize);
+                shift(header.block_size);
         }
         return *this;
     }
