@@ -47,6 +47,7 @@ namespace umbf
         template <typename S, typename T>
         void *convertImageChannelBits(void *source, u64 size, int srcChannels, int dstChannels)
         {
+            assert(source);
             auto src = reinterpret_cast<S *>(source);
             T *buffer = (T *)acul::mem_allocator<std::byte>::allocate(size * dstChannels / srcChannels);
             f64 maxValue;

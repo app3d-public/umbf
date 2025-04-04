@@ -103,7 +103,7 @@ namespace umbf
             if (!loadFile(path, stream, asset->header)) return nullptr;
             auto offset = stream.pos();
             stream.read(asset->blocks);
-            if (asset->blocks.begin() == asset->blocks.end()) return nullptr;
+            if (asset->blocks.begin() == asset->blocks.end()) logWarn("Meta data not found in '%s'", path.c_str());
             asset->checksum = acul::crc32(0, stream.data() + offset, stream.size() - offset);
             return asset;
         }
@@ -170,10 +170,8 @@ namespace umbf
 
     void Registry::init(const acul::io::path &path)
     {
-        if (!acul::io::file::exists(path.str().c_str()))
-            throw acul::runtime_error("Library folder not found: " + path.str());
         acul::vector<acul::string> files;
-        if (acul::io::file::list_files("assets", files) != acul::io::file::op_state::success)
+        if (acul::io::file::list_files(path, files) != acul::io::file::op_state::success)
             throw acul::runtime_error("Failed to get libraries list");
         for (const auto &entry : files)
         {
@@ -209,7 +207,7 @@ namespace acul
         for (auto &block : meta)
         {
             assert(block);
-            auto *metaStream = meta::get_stream(block->signature());
+            auto *metaStream = meta::resolver->get_stream(block->signature());
             if (metaStream)
             {
                 bin_stream tmp{};
@@ -231,7 +229,7 @@ namespace acul
             if (header.block_size == 0ULL) break;
 
             read(header.signature);
-            auto *metaStream = meta::get_stream(header.signature);
+            auto *metaStream = meta::resolver->get_stream(header.signature);
             if (metaStream)
             {
                 acul::shared_ptr<acul::meta::block> block(metaStream->read(*this));
