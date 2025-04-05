@@ -5,6 +5,7 @@
 #include <acul/meta.hpp>
 #include <acul/string/string.hpp>
 #ifndef UMBF_BUILD_MIN
+    #include <acul/math.hpp>
     #include <finders_interface.h>
     #include <glm/glm.hpp>
     #include <vulkan/vulkan.hpp>
