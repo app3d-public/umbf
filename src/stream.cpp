@@ -1,12 +1,15 @@
 #include <acul/log.hpp>
 #include <umbf/umbf.hpp>
-#include <umbf/utils.hpp>
 #include <umbf/version.h>
+#ifndef UMBF_BUILD_MIN
+    #include <umbf/utils.hpp>
+#endif
 
 namespace umbf
 {
     namespace streams
     {
+#ifndef UMBF_BUILD_MIN
         void writeImageInfo(acul::bin_stream &stream, Image2D *image2D)
         {
             stream.write(image2D->width).write(image2D->height).write(static_cast<u16>(image2D->channelCount));
@@ -291,6 +294,7 @@ namespace umbf
             stream.read(block->faces.data(), faceSize);
             return block;
         }
+#endif
 
         void writeTarget(acul::bin_stream &stream, acul::meta::block *block)
         {

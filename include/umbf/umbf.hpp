@@ -2,12 +2,13 @@
 
 #include <acul/hash/hashmap.hpp>
 #include <acul/io/path.hpp>
-#include <acul/math.hpp>
 #include <acul/meta.hpp>
 #include <acul/string/string.hpp>
-#include <finders_interface.h>
-#include <glm/glm.hpp>
-#include <vulkan/vulkan.hpp>
+#ifndef UMBF_BUILD_MIN
+    #include <finders_interface.h>
+    #include <glm/glm.hpp>
+    #include <vulkan/vulkan.hpp>
+#endif
 
 #define UMBF_MAGIC     0xCA9FB393
 #define UMBF_VENDOR_ID 0xBC037D
@@ -76,20 +77,23 @@ namespace umbf
             enum : u16
             {
                 none = 0x0,
+#ifndef UMBF_BUILD_MIN
                 image = 0x0490,
                 scene = 0xD20C,
                 material = 0x78DB,
+#endif
                 target = 0x613E,
                 library = 0x1A2C,
                 raw = 0x4D4D
             };
-        }
+        } // namespace format
 
         namespace meta
         {
             enum : u32
             {
                 none = 0x0,
+#ifndef UMBF_BUILD_MIN
                 image2D = 0x7684573F,
                 image_atlas = 0xA3903A92,
                 material = 0xA8D0C51E,
@@ -97,12 +101,14 @@ namespace umbf
                 mesh = 0xF224B521,
                 material_range_assign = 0xC441E54D,
                 material_info = 0x6112A229,
+#endif
                 target = 0x0491F4E9,
                 library = 0x8D7824FA
             };
-        }
+        } // namespace meta
     } // namespace sign_block
 
+#ifndef UMBF_BUILD_MIN
     // Represents a 2D image asset block.
     struct Image2D : acul::meta::block
     {
@@ -397,6 +403,7 @@ namespace umbf
          */
         virtual u32 signature() const override { return sign_block::meta::material_range_assign; }
     };
+#endif
 
     /**
      * Structure representing a Target asset.
@@ -491,6 +498,7 @@ namespace umbf
 
     namespace streams
     {
+#ifndef UMBF_BUILD_MIN
         APPLIB_API void writeImage2D(acul::bin_stream &stream, acul::meta::block *block);
         APPLIB_API acul::meta::block *readImage2D(acul::bin_stream &stream);
         inline acul::meta::stream image2D = {readImage2D, writeImage2D};
@@ -525,7 +533,7 @@ namespace umbf
         APPLIB_API acul::meta::block *readMesh(acul::bin_stream &stream);
         APPLIB_API void writeMesh(acul::bin_stream &stream, acul::meta::block *block);
         inline acul::meta::stream mesh = {readMesh, writeMesh};
-
+#endif
         APPLIB_API acul::meta::block *readTarget(acul::bin_stream &stream);
         APPLIB_API void writeTarget(acul::bin_stream &stream, acul::meta::block *block);
         inline acul::meta::stream target = {readTarget, writeTarget};
@@ -584,6 +592,7 @@ namespace acul
     template <>
     bin_stream &bin_stream::read(acul::vector<umbf::File> &dst);
 
+#ifndef UMBF_BUILD_MIN
     template <>
     inline bin_stream &bin_stream::write(const umbf::MaterialNode &src)
     {
@@ -593,6 +602,7 @@ namespace acul
 
     template <>
     bin_stream &bin_stream::read(umbf::MaterialNode &dst);
+#endif
 
     template <>
     bin_stream &bin_stream::write(const umbf::Library::Node &node);
@@ -601,6 +611,7 @@ namespace acul
     bin_stream &bin_stream::read(umbf::Library::Node &node);
 } // namespace acul
 
+#ifndef UMBF_BUILD_MIN
 namespace std
 {
     template <>
@@ -616,3 +627,4 @@ namespace std
         }
     };
 } // namespace std
+#endif

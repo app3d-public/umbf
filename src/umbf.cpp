@@ -1,7 +1,9 @@
 #include <acul/io/file.hpp>
 #include <acul/log.hpp>
 #include <umbf/umbf.hpp>
-#include <umbf/utils.hpp>
+#ifndef UMBF_BUILD_MIN
+    #include <umbf/utils.hpp>
+#endif
 
 namespace umbf
 {
@@ -113,7 +115,7 @@ namespace umbf
             return nullptr;
         }
     }
-
+#ifndef UMBF_BUILD_MIN
     bool packAtlas(size_t maxSize, int discardStep, rectpack2D::flipping_option flip, std::vector<Atlas::Rect> &dst)
     {
         rectpack2D::callback_result packResult{rectpack2D::callback_result::CONTINUE_PACKING};
@@ -148,7 +150,7 @@ namespace umbf
             utils::copyPixelsToArea(*(src[i]), *image, rect);
         }
     }
-
+#endif
     Library::Node *Library::getNode(const acul::io::path &path)
     {
         Node *currentNode = &fileTree;
@@ -253,7 +255,7 @@ namespace acul
         for (auto &asset : dst) read(asset);
         return *this;
     }
-
+#ifndef UMBF_BUILD_MIN
     template <>
     bin_stream &bin_stream::read(umbf::MaterialNode &dst)
     {
@@ -263,6 +265,7 @@ namespace acul
         dst.texture_id = dst.textured ? (data & 0x7FFF) : 0;
         return *this;
     }
+#endif
 
     template <>
     bin_stream &bin_stream::write(const umbf::Library::Node &node)
