@@ -283,7 +283,7 @@ namespace umbf
             u32 vertex; ///< Index of the specific vertex within the entire vertex buffer
         };
 
-        // Represents a group of vertices.
+        // Represents a group of vertices. Help structure. Not used directly in the UMBF Mesh.
         struct VertexGroup
         {
             acul::vector<u32> vertices; ///< List of indices pointing to vertices in this group.
@@ -291,30 +291,12 @@ namespace umbf
         };
 
         // Represents a polygon face.
-        template <typename Ref>
         struct Face
         {
-            acul::vector<Ref> vertices; ///< List of vertex references that define the face.
-            glm::vec3 normal;           ///< The normal vector of the face
-
-            Face(const acul::vector<Ref> &verts = {}, const glm::vec3 &norm = {}) : vertices(verts), normal(norm) {}
-            Face(std::initializer_list<Ref> verts, const glm::vec3 &norm = {}) : vertices(verts), normal(norm) {}
-        };
-
-        struct IndexedFace : Face<VertexRef>
-        {
-            u32 startID;    ///< Starting index in the index buffer for this face.
-            u16 indexCount; ///< Number of indices that define this face.
-
-            IndexedFace(const acul::vector<VertexRef> &vertices = {}, const glm::vec3 &norm = {0.0f, 0.0f, 0.0f},
-                        u32 sid = 0, u16 icount = 0)
-                : Face(vertices, norm), startID(sid), indexCount(icount)
-            {
-            }
-            IndexedFace(std::initializer_list<VertexRef> verts, const glm::vec3 &norm, u32 sid, u16 icount)
-                : Face<VertexRef>(verts, norm), startID(sid), indexCount(icount)
-            {
-            }
+            acul::vector<VertexRef> vertices; ///< List of vertex references that define the face.
+            glm::vec3 normal;                 ///< The normal vector of the face
+            u32 firstVertex;                  ///< Starting index in the index buffer for this face.
+            u32 count;                        ///< Number of indices that define this face.
         };
 
         using AABB = acul::math::min_max<glm::vec3>;
@@ -322,27 +304,12 @@ namespace umbf
         // Represents a 3D mesh model.
         struct Model
         {
-            acul::vector<Vertex> vertices;   ///< Array containing all vertices of the model.
-            u32 group_count;                 ///< Size of the vertex group array.
-            acul::vector<IndexedFace> faces; ///< Array of faces that make up the model.
-            acul::vector<u32> indices;       ///< Array of indices for rendering the model.
-            AABB aabb;                       ///< Axis-aligned bounding box that encloses the model.
+            acul::vector<Vertex> vertices; ///< Array containing all vertices of the model.
+            u32 group_count;               ///< Size of the vertex group array.
+            acul::vector<Face> faces;      ///< Array of faces that make up the model.
+            acul::vector<u32> indices;     ///< Array of indices for rendering the model.
+            AABB aabb;                     ///< Axis-aligned bounding box that encloses the model.
         };
-
-        namespace bary
-        {
-            // Represents a vertex with barycentric coordinates.
-            struct Vertex
-            {
-                glm::vec3 pos{0.0f, 0.0f, 0.0f};         ///< The position of the vertex.
-                glm::vec3 barycentric{0.0f, 0.0f, 0.0f}; ///< The barycentric coordinates of the vertex.
-
-                bool operator==(const Vertex &other) const
-                {
-                    return pos == other.pos && barycentric == other.barycentric;
-                }
-            };
-        }; // namespace bary
 
         struct Transform
         {
@@ -354,10 +321,9 @@ namespace umbf
         // Represents a block of mesh data.
         struct MeshBlock : acul::meta::block
         {
-            Model model;                             ///< The 3D model data contained in this mesh block.
-            acul::vector<bary::Vertex> baryVertices; ///< Array of vertices with barycentric coordinates.
-            Transform transform;                     ///< Transformation information for the mesh.
-            f32 normalsAngle = 0.0f;                 ///< 0: hard normals, otherwise soft normals using specified angle
+            Model model;             ///< The 3D model data contained in this mesh block.
+            Transform transform;     ///< Transformation information for the mesh.
+            f32 normalsAngle = 0.0f; ///< 0: hard normals, otherwise soft normals using specified angle
 
             /**
              * @brief Returns the signature of the block.

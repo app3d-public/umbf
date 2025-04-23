@@ -130,60 +130,6 @@ namespace umbf
             bary.z = static_cast<f32>(binary & 0x1);
         }
 
-        acul::vector<u64> pack(const acul::vector<mesh::bary::Vertex> &barycentric)
-        {
-            size_t packSize = (barycentric.size() * 3 + 63) / 64;
-            acul::vector<u64> pack64(packSize, 0);
-            int bid = 0, offset = 0, i = 0;
-            while (bid < packSize)
-            {
-                if (offset != 0) pack64[bid] |= encode(barycentric[i++].barycentric) << (64 - offset);
-                while (offset < 61 && i < barycentric.size())
-                {
-                    pack64[bid] |= encode(barycentric[i++].barycentric) << (61 - offset);
-                    offset += 3;
-                }
-                if (i < barycentric.size() && offset < 64)
-                {
-                    offset = 3 - (64 - offset);
-                    pack64[bid] |= encode(barycentric[i].barycentric) >> offset;
-                    if (offset == 0) ++i;
-                }
-                ++bid;
-            }
-            return pack64;
-        }
-        acul::vector<glm::vec3> unpack(const acul::vector<u64> &src, size_t size)
-        {
-            acul::vector<glm::vec3> barycentric(size);
-            int bid = 0, offset = 0, i = 0;
-            while (bid < size)
-            {
-                while (offset < 61 && i < size)
-                {
-                    decode(src[bid] >> (61 - offset), barycentric[i++]);
-                    offset += 3;
-                }
-                if (i < size && offset != 64)
-                {
-                    if (offset == 61)
-                    {
-                        decode(src[bid++] & 0x7, barycentric[i++]);
-                        offset = 0;
-                    }
-                    else
-                    {
-                        u64 tmp = src[bid] & ((1LL << (64 - offset)) - 1);
-                        offset = 3 - (64 - offset);
-                        decode((tmp << offset) | (src[++bid] >> (64 - offset)), barycentric[i++]);
-                    }
-                }
-                else
-                    ++bid;
-            }
-            return barycentric;
-        }
-
         void writeMesh(acul::bin_stream &stream, acul::meta::block *block)
         {
             mesh::MeshBlock *mesh = static_cast<mesh::MeshBlock *>(block);
@@ -204,13 +150,9 @@ namespace umbf
                 stream.write(static_cast<u32>(face.vertices.size()))
                     .write(face.vertices.data(), face.vertices.size())
                     .write(face.normal)
-                    .write(face.indexCount);
-                for (int i = face.startID; i < face.startID + face.indexCount; i++) stream.write(model.indices[i]);
+                    .write(face.count);
+                stream.write(model.indices.data() + face.firstVertex, face.count);
             }
-
-            // Barycentrics
-            auto barycentric = pack(mesh->baryVertices);
-            stream.write(barycentric.data(), barycentric.size());
 
             // Other meta info
             stream.write(model.aabb.min)
@@ -232,7 +174,6 @@ namespace umbf
             model.group_count = vgCount;
             model.faces.resize(fCount);
             model.indices.resize(iCount);
-            mesh->baryVertices.resize(iCount);
 
             // Vertices
             for (auto &vertex : model.vertices) stream.read(vertex.pos).read(vertex.uv).read(vertex.normal);
@@ -244,18 +185,11 @@ namespace umbf
                 u32 fvCount;
                 stream.read(fvCount);
                 face.vertices.resize(fvCount);
-                stream.read(face.vertices.data(), fvCount).read(face.normal).read(face.indexCount);
-                for (int i = 0; i < face.indexCount; i++) stream.read(model.indices[indexID + i]);
-                face.startID = indexID;
-                indexID += face.indexCount;
+                stream.read(face.vertices.data(), fvCount).read(face.normal).read(face.count);
+                for (int i = 0; i < face.count; i++) stream.read(model.indices[indexID + i]);
+                face.firstVertex = indexID;
+                indexID += face.count;
             }
-
-            // Barycentrics
-            acul::vector<u64> baryPack((iCount * 3 + 63) / 64);
-            stream.read(reinterpret_cast<char *>(baryPack.data()), baryPack.size() * sizeof(u64));
-            acul::vector<glm::vec3> barycentric = unpack(baryPack, iCount);
-            for (int i = 0; i < iCount; i++)
-                mesh->baryVertices[i] = {model.vertices[model.indices[i]].pos, barycentric[i]};
 
             // Other meta info
             stream.read(model.aabb.min)
