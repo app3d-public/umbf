@@ -321,9 +321,8 @@ namespace umbf
         // Represents a block of mesh data.
         struct MeshBlock : acul::meta::block
         {
-            Model model;             ///< The 3D model data contained in this mesh block.
-            Transform transform;     ///< Transformation information for the mesh.
-            f32 normalsAngle = 0.0f; ///< 0: hard normals, otherwise soft normals using specified angle
+            Model model;         ///< The 3D model data contained in this mesh block.
+            Transform transform; ///< Transformation information for the mesh.
 
             /**
              * @brief Returns the signature of the block.
@@ -514,10 +513,10 @@ namespace umbf
 namespace acul
 {
     template <>
-    APPLIB_API bin_stream &bin_stream::write(const acul::vector<acul::shared_ptr<acul::meta::block>> &meta);
+    APPLIB_API bin_stream &bin_stream::write(const vector<acul::shared_ptr<acul::meta::block>> &meta);
 
     template <>
-    APPLIB_API bin_stream &bin_stream::read(acul::vector<acul::shared_ptr<acul::meta::block>> &meta);
+    APPLIB_API bin_stream &bin_stream::read(vector<acul::shared_ptr<acul::meta::block>> &meta);
 
     template <>
     inline bin_stream &bin_stream::write(const umbf::File::Header &header)
@@ -549,7 +548,7 @@ namespace acul
     }
 
     template <>
-    inline bin_stream &bin_stream::write(const acul::vector<umbf::File> &assets)
+    inline bin_stream &bin_stream::write(const vector<umbf::File> &assets)
     {
         write(static_cast<u16>(assets.size()));
         for (auto &asset : assets) write(asset);
@@ -557,7 +556,7 @@ namespace acul
     }
 
     template <>
-    bin_stream &bin_stream::read(acul::vector<umbf::File> &dst);
+    bin_stream &bin_stream::read(vector<umbf::File> &dst);
 
 #ifndef UMBF_BUILD_MIN
     template <>

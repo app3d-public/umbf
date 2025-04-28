@@ -159,8 +159,7 @@ namespace umbf
                 .write(model.aabb.max)
                 .write(mesh->transform.position)
                 .write(mesh->transform.rotation)
-                .write(mesh->transform.scale)
-                .write(mesh->normalsAngle);
+                .write(mesh->transform.scale);
         }
 
         acul::meta::block *readMesh(acul::bin_stream &stream)
@@ -196,8 +195,7 @@ namespace umbf
                 .read(model.aabb.max)
                 .read(mesh->transform.position)
                 .read(mesh->transform.rotation)
-                .read(mesh->transform.scale)
-                .read(mesh->normalsAngle);
+                .read(mesh->transform.scale);
             return mesh;
         }
 

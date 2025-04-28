@@ -115,6 +115,7 @@ namespace umbf
             return nullptr;
         }
     }
+
 #ifndef UMBF_BUILD_MIN
     bool packAtlas(size_t maxSize, int discardStep, rectpack2D::flipping_option flip, std::vector<Atlas::Rect> &dst)
     {
@@ -204,7 +205,7 @@ namespace umbf
 namespace acul
 {
     template <>
-    bin_stream &bin_stream::write(const acul::vector<acul::shared_ptr<acul::meta::block>> &meta)
+    bin_stream &bin_stream::write(const vector<acul::shared_ptr<acul::meta::block>> &meta)
     {
         for (auto &block : meta)
         {
@@ -222,7 +223,7 @@ namespace acul
     }
 
     template <>
-    bin_stream &bin_stream::read(acul::vector<acul::shared_ptr<acul::meta::block>> &meta)
+    bin_stream &bin_stream::read(vector<acul::shared_ptr<acul::meta::block>> &meta)
     {
         while (_pos < _data.size())
         {
@@ -247,7 +248,7 @@ namespace acul
     }
 
     template <>
-    bin_stream &bin_stream::read(acul::vector<umbf::File> &dst)
+    bin_stream &bin_stream::read(vector<umbf::File> &dst)
     {
         u16 size;
         read(size);
