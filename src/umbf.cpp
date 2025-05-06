@@ -7,7 +7,7 @@
 
 namespace umbf
 {
-    APPLIB_API void packHeader(const File::Header &src, File::Header::Pack &dst)
+    APPLIB_API void pack_header(const File::Header &src, File::Header::Pack &dst)
     {
         dst.vendor_sign = src.vendor_sign & 0xFFFFFF;
         dst.compressed = static_cast<u8>(src.compressed);
@@ -17,7 +17,7 @@ namespace umbf
         dst.spec_version = src.spec_version & 0xFFFFFF;
     }
 
-    APPLIB_API void unpackHeader(const File::Header::Pack &src, File::Header &dst)
+    APPLIB_API void unpack_header(const File::Header::Pack &src, File::Header &dst)
     {
         dst.vendor_sign = src.vendor_sign & 0xFFFFFF;
         dst.compressed = src.compressed != 0;
@@ -30,14 +30,14 @@ namespace umbf
     {
         acul::bin_stream dstStream;
         File::Header::Pack pack;
-        packHeader(file.header, pack);
+        pack_header(file.header, pack);
         dstStream.write(UMBF_MAGIC).write(pack);
         if (file.header.compressed)
         {
             acul::vector<char> compressed;
             if (!acul::io::file::compress(src.data() + src.pos(), src.size() - src.pos(), compressed, compression))
             {
-                logError("Failed to compress: %s", path.str().c_str());
+                LOG_ERROR("Failed to compress: %s", path.str().c_str());
                 return false;
             }
 
@@ -59,100 +59,100 @@ namespace umbf
         }
         catch (const std::exception &e)
         {
-            logError("Asset write error: %s", e.what());
+            LOG_ERROR("Asset write error: %s", e.what());
             return false;
         }
     }
 
-    bool loadFile(const acul::io::path &path, acul::bin_stream &dst, File::Header &header)
+    bool load_file(const acul::io::path &path, acul::bin_stream &dst, File::Header &header)
     {
         acul::vector<char> source;
-        if (acul::io::file::read_binary(path.str(), source) != acul::io::file::op_state::success) return false;
+        if (acul::io::file::read_binary(path.str(), source) != acul::io::file::op_state::Success) return false;
 
-        acul::bin_stream sourceStream(std::move(source));
+        acul::bin_stream source_stream(std::move(source));
         u32 sign_file_format;
-        sourceStream.read(sign_file_format);
+        source_stream.read(sign_file_format);
         if (sign_file_format != UMBF_MAGIC)
         {
-            logError("Invalid file signature");
+            LOG_ERROR("Invalid file signature");
             return false;
         }
         File::Header::Pack pack;
-        sourceStream.read(pack);
-        unpackHeader(pack, header);
+        source_stream.read(pack);
+        unpack_header(pack, header);
         if (header.compressed)
         {
             acul::vector<char> decompressed;
-            if (!acul::io::file::decompress(sourceStream.data() + sourceStream.pos(),
-                                            sourceStream.size() - sourceStream.pos(), decompressed))
+            if (!acul::io::file::decompress(source_stream.data() + source_stream.pos(),
+                                            source_stream.size() - source_stream.pos(), decompressed))
             {
-                logError("Failed to decompress: %s", path.str().c_str());
+                LOG_ERROR("Failed to decompress: %s", path.str().c_str());
                 return false;
             }
             dst = acul::bin_stream(std::move(decompressed));
         }
         else
-            dst = std::move(sourceStream);
+            dst = std::move(source_stream);
         return true;
     }
 
-    acul::shared_ptr<File> File::readFromDisk(const acul::string &path)
+    acul::shared_ptr<File> File::read_from_disk(const acul::string &path)
     {
         try
         {
             acul::bin_stream stream{};
             auto asset = acul::make_shared<File>();
-            if (!loadFile(path, stream, asset->header)) return nullptr;
+            if (!load_file(path, stream, asset->header)) return nullptr;
             auto offset = stream.pos();
             stream.read(asset->blocks);
-            if (asset->blocks.begin() == asset->blocks.end()) logWarn("Meta data not found in '%s'", path.c_str());
+            if (asset->blocks.begin() == asset->blocks.end()) LOG_WARN("Meta data not found in '%s'", path.c_str());
             asset->checksum = acul::crc32(0, stream.data() + offset, stream.size() - offset);
             return asset;
         }
         catch (std::exception &e)
         {
-            logError("%s", e.what());
+            LOG_ERROR("%s", e.what());
             return nullptr;
         }
     }
 
 #ifndef UMBF_BUILD_MIN
-    bool packAtlas(size_t maxSize, int discardStep, rectpack2D::flipping_option flip, std::vector<Atlas::Rect> &dst)
+    bool pack_atlas(size_t maxSize, int discardStep, rectpack2D::flipping_option flip, std::vector<Atlas::Rect> &dst)
     {
-        rectpack2D::callback_result packResult{rectpack2D::callback_result::CONTINUE_PACKING};
-        static std::function<rectpack2D::callback_result(Atlas::Rect &)> reportSuccessfull = [](Atlas::Rect &) {
+        rectpack2D::callback_result pack_result{rectpack2D::callback_result::CONTINUE_PACKING};
+        static std::function<rectpack2D::callback_result(Atlas::Rect &)> report_successfull = [](Atlas::Rect &) {
             return rectpack2D::callback_result::CONTINUE_PACKING;
         };
-        static std::function<rectpack2D::callback_result(Atlas::Rect &)> reportUnsuccessfull =
-            [&packResult, maxSize](Atlas::Rect &) {
-                packResult = rectpack2D::callback_result::ABORT_PACKING;
-                logInfo("Failed to pack atlas. Max size: %zu", maxSize);
+        static std::function<rectpack2D::callback_result(Atlas::Rect &)> report_unsuccessfull =
+            [&pack_result, maxSize](Atlas::Rect &) {
+                pack_result = rectpack2D::callback_result::ABORT_PACKING;
+                LOG_INFO("Failed to pack atlas. Max size: %zu", maxSize);
                 return rectpack2D::callback_result::ABORT_PACKING;
             };
 
         rectpack2D::find_best_packing<Atlas::Spaces>(
-            dst, rectpack2D::make_finder_input(maxSize, discardStep, reportSuccessfull, reportUnsuccessfull, flip));
-        return packResult != rectpack2D::callback_result::ABORT_PACKING;
+            dst, rectpack2D::make_finder_input(maxSize, discardStep, report_successfull, report_unsuccessfull, flip));
+        return pack_result != rectpack2D::callback_result::ABORT_PACKING;
     }
 
-    void fillAtlasPixels(const acul::shared_ptr<Image2D> &image, const acul::shared_ptr<Atlas> &atlas,
-                         const acul::vector<acul::shared_ptr<Image2D>> &src)
+    void fill_atlas_pixels(const acul::shared_ptr<Image2D> &image, const acul::shared_ptr<Atlas> &atlas,
+                           const acul::vector<acul::shared_ptr<Image2D>> &src)
     {
-        utils::fillColorPixels(glm::vec4(0.0f), *image);
-        for (size_t i = 0; i < atlas->packData.size(); i++)
+        utils::fill_color_pixels(glm::vec4(0.0f), *image);
+        for (size_t i = 0; i < atlas->pack_data.size(); i++)
         {
             if (!src[i]->pixels) throw acul::runtime_error("Pixels cannot be null");
 
-            auto rect = atlas->packData[i];
+            auto rect = atlas->pack_data[i];
             rect.x += atlas->padding;
             rect.y += atlas->padding;
             rect.w -= 2 * atlas->padding;
             rect.h -= 2 * atlas->padding;
-            utils::copyPixelsToArea(*(src[i]), *image, rect);
+            utils::copy_pixels_to_area(*(src[i]), *image, rect);
         }
     }
 #endif
-    Library::Node *Library::getNode(const acul::io::path &path)
+    Library::Node *Library::get_node(const acul::io::path &path)
     {
         Node *currentNode = &fileTree;
         for (const auto &it : path)
@@ -164,7 +164,7 @@ namespace umbf
                 currentNode = &(*childIt);
             else
             {
-                logError("Path not found in the library: %s", path.str().c_str());
+                LOG_ERROR("Path not found in the library: %s", path.str().c_str());
                 return nullptr;
             }
         }
@@ -174,7 +174,7 @@ namespace umbf
     void Registry::init(const acul::io::path &path)
     {
         acul::vector<acul::string> files;
-        if (acul::io::file::list_files(path, files) != acul::io::file::op_state::success)
+        if (acul::io::file::list_files(path, files) != acul::io::file::op_state::Success)
             throw acul::runtime_error("Failed to get libraries list");
         for (const auto &entry : files)
         {
@@ -182,11 +182,11 @@ namespace umbf
             {
                 try
                 {
-                    logInfo("Loading library: %s", entry.c_str());
-                    auto asset = File::readFromDisk(entry);
-                    if (!asset || asset->header.type_sign != sign_block::format::library)
+                    LOG_INFO("Loading library: %s", entry.c_str());
+                    auto asset = File::read_from_disk(entry);
+                    if (!asset || asset->header.type_sign != sign_block::format::Library)
                     {
-                        logWarn("Failed to load library %s", entry.c_str());
+                        LOG_WARN("Failed to load library %s", entry.c_str());
                         continue;
                     }
                     auto library = acul::dynamic_pointer_cast<Library>(asset->blocks.front());
@@ -194,7 +194,7 @@ namespace umbf
                 }
                 catch (...)
                 {
-                    logWarn("Failed to load library %s", entry.c_str());
+                    LOG_WARN("Failed to load library %s", entry.c_str());
                     continue;
                 }
             }
@@ -239,7 +239,7 @@ namespace acul
                 if (block)
                     meta.push_back(block);
                 else
-                    logWarn("Failed to read meta block: 0x%08x", header.signature);
+                    LOG_WARN("Failed to read meta block: 0x%08x", header.signature);
             }
             else
                 shift(header.block_size);
@@ -271,16 +271,16 @@ namespace acul
     template <>
     bin_stream &bin_stream::write(const umbf::Library::Node &node)
     {
-        write(node.name).write(node.isFolder);
-        u16 childCount = static_cast<u16>(node.children.size());
-        write(childCount);
-        if (childCount > 0)
+        write(node.name).write(node.is_folder);
+        u16 child_count = static_cast<u16>(node.children.size());
+        write(child_count);
+        if (child_count > 0)
             for (const auto &child : node.children) write(child);
         else
         {
-            if (!node.isFolder)
+            if (!node.is_folder)
             {
-                if (node.asset.header.type_sign == umbf::sign_block::format::none)
+                if (node.asset.header.type_sign == umbf::sign_block::format::None)
                     throw acul::runtime_error("Asset is invalid. Possible corrupted file structure");
                 write(node.asset);
             }
@@ -291,22 +291,22 @@ namespace acul
     template <>
     bin_stream &bin_stream::read(umbf::Library::Node &node)
     {
-        read(node.name).read(node.isFolder);
-        u16 childCount;
-        read(childCount);
-        if (childCount > 0)
+        read(node.name).read(node.is_folder);
+        u16 child_count;
+        read(child_count);
+        if (child_count > 0)
         {
-            for (u16 i = 0; i < childCount; ++i)
+            for (u16 i = 0; i < child_count; ++i)
             {
                 umbf::Library::Node child;
                 read(child);
                 node.children.push_back(child);
             }
         }
-        else if (!node.isFolder)
+        else if (!node.is_folder)
         {
             read(node.asset);
-            if (node.asset.header.type_sign == umbf::sign_block::format::none)
+            if (node.asset.header.type_sign == umbf::sign_block::format::None)
                 throw acul::runtime_error("UMBF file is invalid. Possible corrupted file structure");
         }
         return *this;
