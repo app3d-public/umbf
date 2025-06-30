@@ -154,21 +154,21 @@ namespace umbf
 #endif
     Library::Node *Library::get_node(const acul::io::path &path)
     {
-        Node *currentNode = &fileTree;
+        Node *current_node = &file_tree;
         for (const auto &it : path)
         {
-            auto childIt = std::find_if(currentNode->children.begin(), currentNode->children.end(),
-                                        [&it](const Node &node) { return node.name == it; });
+            auto child_it = std::find_if(current_node->children.begin(), current_node->children.end(),
+                                         [&it](const Node &node) { return node.name == it; });
 
-            if (childIt != currentNode->children.end())
-                currentNode = &(*childIt);
+            if (child_it != current_node->children.end())
+                current_node = &(*child_it);
             else
             {
                 LOG_ERROR("Path not found in the library: %s", path.str().c_str());
                 return nullptr;
             }
         }
-        return currentNode;
+        return current_node;
     }
 
     void Registry::init(const acul::io::path &path)
@@ -189,8 +189,9 @@ namespace umbf
                         LOG_WARN("Failed to load library %s", entry.c_str());
                         continue;
                     }
-                    auto library = acul::dynamic_pointer_cast<Library>(asset->blocks.front());
-                    if (library) _libraries.emplace(library->fileTree.name, library);
+                    auto library = acul::static_pointer_cast<Library>(asset->blocks.front());
+                    _libraries.emplace(library->file_tree.name, library);
+                    asset->blocks.clear();
                 }
                 catch (...)
                 {
@@ -232,10 +233,10 @@ namespace acul
             if (header.block_size == 0ULL) break;
 
             read(header.signature);
-            auto *metaStream = meta::resolver->get_stream(header.signature);
-            if (metaStream)
+            auto *meta_stream = meta::resolver->get_stream(header.signature);
+            if (meta_stream)
             {
-                acul::shared_ptr<acul::meta::block> block(metaStream->read(*this));
+                acul::shared_ptr<acul::meta::block> block(meta_stream->read(*this));
                 if (block)
                     meta.push_back(block);
                 else
@@ -296,12 +297,8 @@ namespace acul
         read(child_count);
         if (child_count > 0)
         {
-            for (u16 i = 0; i < child_count; ++i)
-            {
-                umbf::Library::Node child;
-                read(child);
-                node.children.push_back(child);
-            }
+            node.children.resize(child_count);
+            for (auto &child : node.children) read(child);
         }
         else if (!node.is_folder)
         {

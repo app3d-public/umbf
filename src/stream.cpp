@@ -169,7 +169,7 @@ namespace umbf
                 stream.read(face_vertices_count);
                 face.vertices.resize(face_vertices_count);
                 stream.read(face.vertices.data(), face_vertices_count).read(face.normal).read(face.count);
-                for (int i = 0; i < face.count; i++) stream.read(model.indices[index_offset + i]);
+                for (u32 i = 0; i < face.count; i++) stream.read(model.indices[index_offset + i]);
                 face.first_vertex = index_offset;
                 index_offset += face.count;
             }
@@ -228,13 +228,13 @@ namespace umbf
         void write_library(acul::bin_stream &stream, acul::meta::block *block)
         {
             auto library = static_cast<Library *>(block);
-            stream.write(library->fileTree);
+            stream.write(library->file_tree);
         }
 
         acul::meta::block *read_library(acul::bin_stream &stream)
         {
             Library *library = acul::alloc<Library>();
-            stream.read(library->fileTree);
+            stream.read(library->file_tree);
             return library;
         }
     } // namespace streams

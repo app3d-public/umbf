@@ -4,6 +4,7 @@
 #include <acul/io/path.hpp>
 #include <acul/meta.hpp>
 #include <acul/string/string.hpp>
+#include <cstdio>
 #ifndef UMBF_BUILD_MIN
     #include <acul/math.hpp>
     #include <glm/glm.hpp>
@@ -401,7 +402,7 @@ namespace umbf
             acul::vector<Node> children; // Child nodes of this file node.
             bool is_folder{false};       // Flag indicating if the node is a folder.
             File asset;                  // The asset associated with the node.
-        } fileTree;
+        } file_tree;
 
         /**
          * @brief Returns the signature of the block.
@@ -457,8 +458,7 @@ namespace umbf
         const_iterator end() const { return _libraries.end(); }
         const_iterator cend() const { return _libraries.cend(); }
 
-        void init(const acul::io::path &assetsPath);
-
+        void init(const acul::io::path &path);
     private:
         acul::hashmap<acul::string, acul::shared_ptr<Library>> _libraries;
     };

@@ -16,7 +16,7 @@ namespace umbf
             {
                 assert((image_info.channel_count == 3 || image_info.channel_count == 4) &&
                        "Fill color only supports RGB or RGBA image");
-                for (int i = 0; i < image_info.size(); i += image_info.channel_count)
+                for (vk::DeviceSize i = 0; i < image_info.size(); i += image_info.channel_count)
                     for (int ch = 0; ch < image_info.channel_count; ch++) data[i + ch] = color[ch];
             }
 
@@ -82,7 +82,7 @@ namespace umbf
             const T *pSrc = reinterpret_cast<const T *>(src.pixels);
             T *pDst = reinterpret_cast<T *>(dst.pixels);
             if (rect.x + rect.w <= dst.width && rect.y + rect.h <= dst.height)
-                for (size_t y = 0; y < rect.h; ++y)
+                for (int y = 0; y < rect.h; ++y)
                     memcpy(pDst + ((rect.y + y) * dst.width + rect.x) * dst.channel_count,
                            pSrc + (y * rect.w) * dst.channel_count, rect.w * dst.channel_count);
             else
@@ -284,7 +284,7 @@ namespace umbf
             void fill_vertex_groups(const Model &model, acul::vector<VertexGroup> &groups)
             {
                 groups.resize(model.group_count);
-                for (int f = 0; f < model.faces.size(); ++f)
+                for (size_t f = 0; f < model.faces.size(); ++f)
                 {
                     for (const auto &vref : model.faces[f].vertices)
                     {
