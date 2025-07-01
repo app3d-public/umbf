@@ -1,16 +1,12 @@
 #pragma once
 
-#include <acul/hash/hashmap.hpp>
-#include <acul/io/path.hpp>
-#include <acul/meta.hpp>
-#include <acul/string/string.hpp>
-#include <cstdio>
+#include <acul/log.hpp>
+#include <acul/stream.hpp>
 #ifndef UMBF_BUILD_MIN
     #include <acul/math.hpp>
     #include <glm/glm.hpp>
     #include <rectpack2D/finders_interface.h>
     #include <vulkan/vulkan.hpp>
-
 #endif
 
 #define UMBF_MAGIC     0xCA9FB393
@@ -18,6 +14,14 @@
 
 namespace umbf
 {
+    // Meta
+    struct Block
+    {
+        virtual ~Block() = default;
+
+        virtual u32 signature() const = 0;
+    };
+
     /**
      * @brief Represents a generic asset in the system.
      *
@@ -37,7 +41,7 @@ namespace umbf
             bool compressed;
         } header;
         // Array of blocks, where the first block defines the asset type and the rest are metadata.
-        acul::vector<acul::shared_ptr<acul::meta::block>> blocks;
+        acul::vector<acul::shared_ptr<Block>> blocks;
         u32 checksum; //< Checksum of the asset for integrity validation.
 
         /**
@@ -91,29 +95,27 @@ namespace umbf
             };
         } // namespace format
 
-        namespace meta
+        enum : u32
         {
-            enum : u32
-            {
-                None = 0x0,
+            Raw = 0xF82E95C8,
+            Device = 0x2AF818FE,
 #ifndef UMBF_BUILD_MIN
-                Image2D = 0x7684573F,
-                ImageAtlas = 0xA3903A92,
-                Material = 0xA8D0C51E,
-                Scene = 0xB7A3EE80,
-                Mesh = 0xF224B521,
-                MaterialRangeAssign = 0xC441E54D,
-                MaterialInfo = 0x6112A229,
+            Image2D = 0x7684573F,
+            ImageAtlas = 0xA3903A92,
+            Material = 0xA8D0C51E,
+            Scene = 0xB7A3EE80,
+            Mesh = 0xF224B521,
+            MaterialRange = 0xC441E54D, // Material Range Assignments
+            MaterialInfo = 0x6112A229,
 #endif
-                Target = 0x0491F4E9,
-                Library = 0x8D7824FA
-            };
-        } // namespace meta
+            Target = 0x0491F4E9,
+            Library = 0x8D7824FA
+        };
     } // namespace sign_block
 
 #ifndef UMBF_BUILD_MIN
     // Represents a 2D image asset block.
-    struct Image2D : acul::meta::block
+    struct Image2D : Block
     {
     public:
         u16 width;                                //< Width of the image in pixels.
@@ -142,7 +144,7 @@ namespace umbf
          *
          * @return The signature of the block.
          */
-        virtual u32 signature() const override { return sign_block::meta::Image2D; }
+        virtual u32 signature() const override { return sign_block::Image2D; }
     };
 
     /**
@@ -152,7 +154,7 @@ namespace umbf
      * additional fields to manage atlas-specific data such as discarded steps, images
      * within the atlas, and packing data.
      */
-    struct Atlas : acul::meta::block
+    struct Atlas : Block
     {
         using Spaces = rectpack2D::empty_spaces<false, rectpack2D::default_empty_spaces>;
         using Rect = rectpack2D::output_rect_t<Spaces>;
@@ -169,14 +171,14 @@ namespace umbf
          *
          * @return The signature of the block.
          */
-        virtual u32 signature() const override { return sign_block::meta::ImageAtlas; }
+        virtual u32 signature() const override { return sign_block::ImageAtlas; }
 
         Atlas() : discard_step(0) {}
     };
 
     /// @brief Pack atlas
     /// @return Returns true on success otherwise returns false
-    APPLIB_API bool pack_atlas(size_t maxSize, int discardStep, rectpack2D::flipping_option flip,
+    APPLIB_API bool pack_atlas(size_t max_size, int discard_step, rectpack2D::flipping_option flip,
                                std::vector<Atlas::Rect> &dst);
 
     /// @brief Fill image pixels data after packing atlas
@@ -199,9 +201,8 @@ namespace umbf
      *
      * The `Material` structure is used to store information about a material, including
      * references to texture assets and specific material properties such as albedo.
-     * It inherits from `acul::meta::block` to provide a base for different types of asset blocks.
      */
-    struct Material final : acul::meta::block
+    struct Material final : Block
     {
         acul::vector<File> textures; //< Array of texture assets associated with the material.
         MaterialNode albedo;         //< Albedo property of the material, defining its base color.
@@ -214,7 +215,7 @@ namespace umbf
          *
          * @return The signature of the block.
          */
-        virtual u32 signature() const override { return sign_block::meta::Material; }
+        virtual u32 signature() const override { return sign_block::Material; }
     };
 
     /**
@@ -226,18 +227,18 @@ namespace umbf
      */
     struct Object
     {
-        u64 id;                                                 //< Unique identifier for the object.
-        acul::string name;                                      //< The name of the object.
-        acul::vector<acul::shared_ptr<acul::meta::block>> meta; //< Metadata associated with the object.
+        u64 id;                                     //< Unique identifier for the object.
+        acul::string name;                          //< The name of the object.
+        acul::vector<acul::shared_ptr<Block>> meta; //< Metadata associated with the object.
     };
 
     /**
      * @brief Represents a scene containing multiple objects, textures, and materials.
      *
      * The `Scene` structure holds a collection of objects, textures, and materials that
-     * make up a scene. It inherits from `acul::meta::block` to integrate with the asset system.
+     * make up a scene.
      */
-    struct Scene final : acul::meta::block
+    struct Scene final : Block
     {
         acul::vector<Object> objects; //< Array of objects present in the scene.
         acul::vector<File> textures;  //< Array of texture assets used in the scene.
@@ -251,7 +252,7 @@ namespace umbf
          *
          * @return The signature of the block.
          */
-        virtual u32 signature() const override { return sign_block::meta::Scene; }
+        virtual u32 signature() const override { return sign_block::Scene; }
     };
 
     namespace mesh
@@ -321,7 +322,7 @@ namespace umbf
         };
 
         // Represents a block of mesh data.
-        struct MeshBlock : acul::meta::block
+        struct Mesh : Block
         {
             Model model;         ///< The 3D model data contained in this mesh block.
             Transform transform; ///< Transformation information for the mesh.
@@ -330,12 +331,12 @@ namespace umbf
              * @brief Returns the signature of the block.
              * @return The signature of the block.
              */
-            virtual u32 signature() const override { return sign_block::meta::Mesh; }
+            virtual u32 signature() const override { return sign_block::Mesh; }
         };
     } // namespace mesh
 
     // Represents material information as an asset block.
-    struct MaterialInfo final : acul::meta::block
+    struct MaterialInfo final : Block
     {
         u64 id;
         acul::string name;             //< The name of the material.
@@ -350,7 +351,7 @@ namespace umbf
          * @brief Returns the signature of the block.
          * @return The signature of the block.
          */
-        virtual u32 signature() const override { return sign_block::meta::MaterialInfo; }
+        virtual u32 signature() const override { return sign_block::MaterialInfo; }
     };
 
     /**
@@ -360,7 +361,7 @@ namespace umbf
      * to specific ranges of faces. This can be used to specify different materials for different
      * parts of a model or mesh.
      */
-    struct MatRangeAssignAttr : acul::meta::block
+    struct MaterialRange : Block
     {
         u64 mat_id;              //< The ID of the material being assigned.
         acul::vector<u32> faces; //< Array of face indices to which the material is assigned.
@@ -369,7 +370,7 @@ namespace umbf
          * @brief Returns the signature of the block.
          * @return The signature of the block.
          */
-        virtual u32 signature() const override { return sign_block::meta::MaterialRangeAssign; }
+        virtual u32 signature() const override { return sign_block::MaterialRange; }
     };
 #endif
 
@@ -378,7 +379,7 @@ namespace umbf
      * The Target class represents a type of asset that doesn't store the resource itself but only
      * information about where the resource is located and its location in the cache.
      */
-    struct Target final : acul::meta::block
+    struct Target final : Block
     {
         acul::string url;    // URL of the target resource
         File::Header header; // Asset header for dst resource
@@ -388,12 +389,12 @@ namespace umbf
          * @brief Returns the signature of the block.
          * @return The signature of the block.
          */
-        virtual u32 signature() const override { return sign_block::meta::Target; }
+        virtual u32 signature() const override { return sign_block::Target; }
     };
 
     // The Library class serves as a storage for other assets. These assets can either be embedded or act as
     // targets.
-    struct APPLIB_API Library final : acul::meta::block
+    struct APPLIB_API Library final : Block
     {
         // Represents a node in the file structure of the asset library.
         struct Node
@@ -408,7 +409,7 @@ namespace umbf
          * @brief Returns the signature of the block.
          * @return The signature of the block.
          */
-        virtual u32 signature() const override { return sign_block::meta::Library; }
+        virtual u32 signature() const override { return sign_block::Library; }
 
         /**
          * @brief Retrieves a list of assets associated with a specified path.
@@ -416,6 +417,30 @@ namespace umbf
          * @return File search result
          */
         Node *get_node(const acul::io::path &path);
+    };
+
+    // Meta block reserved for common external resourcees
+    struct RawBlock : public Block
+    {
+        char *data;
+        u64 data_size;
+
+        RawBlock(char *data = nullptr, u64 data_size = 0) : data(data), data_size(data_size) {}
+
+        virtual u32 signature() const { return sign_block::Raw; }
+
+        ~RawBlock() { acul::release(data); }
+    };
+
+    struct Device : Block
+    {
+        vk::SampleCountFlagBits msaa = vk::SampleCountFlagBits::e1; // The number of samples to use for MSAA.
+        i8 device = -1;                                             // The index of the GPU device to use.
+        // The minimum fraction of sample shading.
+        // A value of 1.0 ensures per-sample shading.
+        f32 sample_shading = 0.0f;
+
+        virtual u32 signature() const override { return sign_block::Device; }
     };
 
     /**
@@ -459,27 +484,59 @@ namespace umbf
         const_iterator cend() const { return _libraries.cend(); }
 
         void init(const acul::io::path &path);
+
     private:
         acul::hashmap<acul::string, acul::shared_ptr<Library>> _libraries;
     };
 
     namespace streams
     {
+        struct Stream
+        {
+            Block *(*read)(acul::bin_stream &stream);
+            void (*write)(acul::bin_stream &stream, Block *block);
+        };
+
+        class Resolver
+        {
+        public:
+            virtual const Stream *get_stream(u32 signature) = 0;
+        };
+
+        class HashResolver final : public Resolver
+        {
+        public:
+            acul::hashmap<u32, const Stream *> streams;
+
+            virtual const Stream *get_stream(u32 signature) override
+            {
+                auto it = streams.find(signature);
+                if (it == streams.end())
+                {
+                    LOG_ERROR("Failed to recognize meta stream signature: 0x%08x", signature);
+                    return nullptr;
+                }
+                return it->second;
+            }
+        };
+
+        extern APPLIB_API Resolver *resolver;
+
 #ifndef UMBF_BUILD_MIN
-        APPLIB_API void write_image(acul::bin_stream &stream, acul::meta::block *block);
-        APPLIB_API acul::meta::block *read_image(acul::bin_stream &stream);
-        inline acul::meta::stream image2D = {read_image, write_image};
+        APPLIB_API void write_image(acul::bin_stream &stream, Block *block);
+        APPLIB_API Block *read_image(acul::bin_stream &stream);
+        inline Stream image2D = {read_image, write_image};
 
-        APPLIB_API acul::meta::block *read_image_atlas(acul::bin_stream &stream);
-        APPLIB_API void write_image_atlas(acul::bin_stream &stream, acul::meta::block *block);
-        inline acul::meta::stream image_atlas = {read_image_atlas, write_image_atlas};
+        APPLIB_API Block *read_image_atlas(acul::bin_stream &stream);
+        APPLIB_API void write_image_atlas(acul::bin_stream &stream, Block *block);
+        inline Stream image_atlas = {read_image_atlas, write_image_atlas};
 
-        APPLIB_API acul::meta::block *read_material(acul::bin_stream &stream);
-        APPLIB_API void write_material(acul::bin_stream &stream, acul::meta::block *block);
-        inline acul::meta::stream material = {read_material, write_material};
+        APPLIB_API Block *read_material(acul::bin_stream &stream);
+        APPLIB_API void write_material(acul::bin_stream &stream, Block *block);
+        inline Stream material = {read_material, write_material};
 
-        APPLIB_API acul::meta::block *read_material_info(acul::bin_stream &stream);
-        inline void write_material_info(acul::bin_stream &stream, acul::meta::block *block)
+        APPLIB_API Block *read_material_info(acul::bin_stream &stream);
+        inline void write_material_info(acul::bin_stream &stream, Block *block)
         {
             MaterialInfo *material = static_cast<MaterialInfo *>(block);
             stream.write(material->id)
@@ -487,37 +544,57 @@ namespace umbf
                 .write(static_cast<u32>(material->assignments.size()))
                 .write(material->assignments.data(), material->assignments.size());
         }
-        inline acul::meta::stream material_info = {read_material_info, write_material_info};
+        inline Stream material_info = {read_material_info, write_material_info};
 
-        APPLIB_API acul::meta::block *read_mat_range_assign(acul::bin_stream &stream);
-        APPLIB_API void write_mat_range_assign(acul::bin_stream &stream, acul::meta::block *block);
-        inline acul::meta::stream mat_range_assign = {read_mat_range_assign, write_mat_range_assign};
+        APPLIB_API Block *read_material_range(acul::bin_stream &stream);
+        APPLIB_API void write_material_range(acul::bin_stream &stream, Block *block);
+        inline Stream mat_range_assign = {read_material_range, write_material_range};
 
-        APPLIB_API acul::meta::block *read_scene(acul::bin_stream &stream);
-        APPLIB_API void write_scene(acul::bin_stream &stream, acul::meta::block *block);
-        inline acul::meta::stream scene = {read_scene, write_scene};
+        APPLIB_API Block *read_scene(acul::bin_stream &stream);
+        APPLIB_API void write_scene(acul::bin_stream &stream, Block *block);
+        inline Stream scene = {read_scene, write_scene};
 
-        APPLIB_API acul::meta::block *read_mesh(acul::bin_stream &stream);
-        APPLIB_API void write_mesh(acul::bin_stream &stream, acul::meta::block *block);
-        inline acul::meta::stream mesh = {read_mesh, write_mesh};
+        APPLIB_API Block *read_mesh(acul::bin_stream &stream);
+        APPLIB_API void write_mesh(acul::bin_stream &stream, Block *block);
+        inline Stream mesh = {read_mesh, write_mesh};
 #endif
-        APPLIB_API acul::meta::block *read_target(acul::bin_stream &stream);
-        APPLIB_API void write_target(acul::bin_stream &stream, acul::meta::block *block);
-        inline acul::meta::stream target = {read_target, write_target};
+        APPLIB_API Block *read_target(acul::bin_stream &stream);
+        APPLIB_API void write_target(acul::bin_stream &stream, Block *block);
+        inline Stream target = {read_target, write_target};
 
-        APPLIB_API acul::meta::block *read_library(acul::bin_stream &stream);
-        APPLIB_API void write_library(acul::bin_stream &stream, acul::meta::block *block);
-        inline acul::meta::stream library = {read_library, write_library};
+        APPLIB_API Block *read_library(acul::bin_stream &stream);
+        APPLIB_API void write_library(acul::bin_stream &stream, Block *block);
+        inline Stream library = {read_library, write_library};
+
+        APPLIB_API Block *read_raw_block(acul::bin_stream &stream);
+        APPLIB_API void write_raw_block(acul::bin_stream &stream, Block *block);
+
+        inline Stream raw_block = {read_raw_block, write_raw_block};
+
+        inline void write_device_config(acul::bin_stream &stream, Block *block)
+        {
+            Device *conf = static_cast<Device *>(block);
+            stream.write(conf->msaa).write(conf->device).write(conf->sample_shading);
+        }
+
+        inline Block *read_device_config(acul::bin_stream &stream)
+        {
+            Device *conf = acul::alloc<Device>();
+            stream.read(conf->msaa).read(conf->device).read(conf->sample_shading);
+            return conf;
+        }
+
+        constexpr Stream device = {read_device_config, write_device_config};
     } // namespace streams
 } // namespace umbf
 
 namespace acul
 {
     template <>
-    APPLIB_API bin_stream &bin_stream::write(const vector<acul::shared_ptr<acul::meta::block>> &meta);
+    APPLIB_API bin_stream &bin_stream::write(const vector<acul::shared_ptr<umbf::Block>> &meta);
 
     template <>
-    APPLIB_API bin_stream &bin_stream::read(vector<acul::shared_ptr<acul::meta::block>> &meta);
+    APPLIB_API bin_stream &bin_stream::read(vector<acul::shared_ptr<umbf::Block>> &meta);
 
     template <>
     inline bin_stream &bin_stream::write(const umbf::File::Header &header)

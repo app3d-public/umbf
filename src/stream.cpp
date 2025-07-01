@@ -9,6 +9,7 @@ namespace umbf
 {
     namespace streams
     {
+        Resolver *resolver = nullptr;
 #ifndef UMBF_BUILD_MIN
         void write_image_info(acul::bin_stream &stream, Image2D *image)
         {
@@ -19,7 +20,7 @@ namespace umbf
             stream.write(image->bytes_per_channel).write(static_cast<u8>(image->format));
         }
 
-        void write_image(acul::bin_stream &stream, acul::meta::block *block)
+        void write_image(acul::bin_stream &stream, Block *block)
         {
             auto image = static_cast<Image2D *>(block);
             write_image_info(stream, image);
@@ -46,7 +47,7 @@ namespace umbf
             image->format = static_cast<vk::Format>(image_format);
         }
 
-        acul::meta::block *read_image(acul::bin_stream &stream)
+        Block *read_image(acul::bin_stream &stream)
         {
             Image2D *image = acul::alloc<Image2D>();
             read_image_info(stream, image);
@@ -56,14 +57,14 @@ namespace umbf
             return image;
         }
 
-        void write_image_atlas(acul::bin_stream &stream, acul::meta::block *block)
+        void write_image_atlas(acul::bin_stream &stream, Block *block)
         {
             auto atlas = static_cast<Atlas *>(block);
             stream.write(atlas->discard_step).write(atlas->padding).write(static_cast<u16>(atlas->pack_data.size()));
             for (auto &rect : atlas->pack_data) stream.write(rect.w).write(rect.h).write(rect.x).write(rect.y);
         }
 
-        acul::meta::block *read_image_atlas(acul::bin_stream &stream)
+        Block *read_image_atlas(acul::bin_stream &stream)
         {
             auto *atlas = acul::alloc<Atlas>();
             u16 pack_data_size;
@@ -79,20 +80,20 @@ namespace umbf
             return atlas;
         }
 
-        void write_material(acul::bin_stream &stream, acul::meta::block *block)
+        void write_material(acul::bin_stream &stream, Block *block)
         {
             auto material = static_cast<Material *>(block);
             stream.write(material->textures).write(material->albedo);
         }
 
-        acul::meta::block *read_material(acul::bin_stream &stream)
+        Block *read_material(acul::bin_stream &stream)
         {
             Material *material = acul::alloc<Material>();
             stream.read(material->textures).read(material->albedo);
             return material;
         }
 
-        void write_scene(acul::bin_stream &stream, acul::meta::block *block)
+        void write_scene(acul::bin_stream &stream, Block *block)
         {
             auto scene = static_cast<Scene *>(block);
             // Objects
@@ -103,7 +104,7 @@ namespace umbf
             stream.write(scene->textures).write(scene->materials);
         }
 
-        acul::meta::block *read_scene(acul::bin_stream &stream)
+        Block *read_scene(acul::bin_stream &stream)
         {
             Scene *scene = acul::alloc<Scene>();
             u16 objectCount;
@@ -114,9 +115,9 @@ namespace umbf
             return scene;
         }
 
-        void write_mesh(acul::bin_stream &stream, acul::meta::block *block)
+        void write_mesh(acul::bin_stream &stream, Block *block)
         {
-            mesh::MeshBlock *mesh = static_cast<mesh::MeshBlock *>(block);
+            mesh::Mesh *mesh = static_cast<mesh::Mesh *>(block);
             auto &model = mesh->model;
 
             // Sizes
@@ -146,9 +147,9 @@ namespace umbf
                 .write(mesh->transform.scale);
         }
 
-        acul::meta::block *read_mesh(acul::bin_stream &stream)
+        Block *read_mesh(acul::bin_stream &stream)
         {
-            mesh::MeshBlock *mesh = acul::alloc<mesh::MeshBlock>();
+            mesh::Mesh *mesh = acul::alloc<mesh::Mesh>();
             auto &model = mesh->model;
             // Sizes
             u32 vertex_count, vertex_group_count, face_count, index_count;
@@ -183,7 +184,7 @@ namespace umbf
             return mesh;
         }
 
-        acul::meta::block *read_material_info(acul::bin_stream &stream)
+        Block *read_material_info(acul::bin_stream &stream)
         {
             MaterialInfo *block = acul::alloc<MaterialInfo>();
             u32 assign_size;
@@ -193,17 +194,17 @@ namespace umbf
             return block;
         }
 
-        void write_mat_range_assign(acul::bin_stream &stream, acul::meta::block *block)
+        void write_material_range(acul::bin_stream &stream, Block *block)
         {
-            MatRangeAssignAttr *assignment = static_cast<MatRangeAssignAttr *>(block);
+            MaterialRange *assignment = static_cast<MaterialRange *>(block);
             stream.write(assignment->mat_id)
                 .write(static_cast<u32>(assignment->faces.size()))
                 .write(assignment->faces.data(), assignment->faces.size());
         }
 
-        acul::meta::block *read_mat_range_assign(acul::bin_stream &stream)
+        Block *read_material_range(acul::bin_stream &stream)
         {
-            MatRangeAssignAttr *block = acul::alloc<MatRangeAssignAttr>();
+            MaterialRange *block = acul::alloc<MaterialRange>();
             u32 face_size;
             stream.read(block->mat_id).read(face_size);
             block->faces.resize(face_size);
@@ -212,30 +213,45 @@ namespace umbf
         }
 #endif
 
-        void write_target(acul::bin_stream &stream, acul::meta::block *block)
+        void write_target(acul::bin_stream &stream, Block *block)
         {
             auto target = static_cast<Target *>(block);
             stream.write(target->header).write(target->url).write(target->checksum);
         }
 
-        acul::meta::block *read_target(acul::bin_stream &stream)
+        Block *read_target(acul::bin_stream &stream)
         {
             Target *target = acul::alloc<Target>();
             stream.read(target->header).read(target->url).read(target->checksum);
             return target;
         }
 
-        void write_library(acul::bin_stream &stream, acul::meta::block *block)
+        void write_library(acul::bin_stream &stream, Block *block)
         {
             auto library = static_cast<Library *>(block);
             stream.write(library->file_tree);
         }
 
-        acul::meta::block *read_library(acul::bin_stream &stream)
+        Block *read_library(acul::bin_stream &stream)
         {
             Library *library = acul::alloc<Library>();
             stream.read(library->file_tree);
             return library;
+        }
+
+        Block *read_raw_block(acul::bin_stream &stream)
+        {
+            auto *block = acul::alloc<RawBlock>();
+            stream.read(block->data_size);
+            block->data = acul::alloc_n<char>(block->data_size);
+            stream.read(block->data, block->data_size);
+            return block;
+        }
+
+        void write_raw_block(acul::bin_stream &stream, Block *content)
+        {
+            auto *raw = static_cast<RawBlock *>(content);
+            stream.write(raw->data_size).write(raw->data, raw->data_size);
         }
     } // namespace streams
 } // namespace umbf

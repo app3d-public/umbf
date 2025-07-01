@@ -1,6 +1,7 @@
 #include <acul/log.hpp>
 #include <numeric>
 #include <umbf/utils.hpp>
+#include "umbf/umbf.hpp"
 
 namespace umbf
 {
@@ -254,11 +255,10 @@ namespace umbf
             }
         }
 
-        void filter_mat_assignments(const acul::vector<acul::shared_ptr<MatRangeAssignAttr>> &assignes,
-                                    size_t faceCount, u64 default_id,
-                                    acul::vector<acul::shared_ptr<MatRangeAssignAttr>> &dst)
+        void filter_mat_assignments(const acul::vector<acul::shared_ptr<MaterialRange>> &assignes, size_t faceCount,
+                                    u64 default_id, acul::vector<acul::shared_ptr<MaterialRange>> &dst)
         {
-            auto defaultAssign = acul::make_shared<MatRangeAssignAttr>();
+            auto defaultAssign = acul::make_shared<MaterialRange>();
             defaultAssign->mat_id = default_id;
             defaultAssign->faces.resize(faceCount);
             std::iota(defaultAssign->faces.begin(), defaultAssign->faces.end(), 0);

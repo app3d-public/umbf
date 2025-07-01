@@ -1,5 +1,6 @@
 #pragma once
 
+#include <acul/gpu/device.hpp>
 #include <glm/glm.hpp>
 #include <oneapi/tbb/parallel_for.h>
 #include "umbf.hpp"
@@ -45,14 +46,35 @@ namespace umbf
          */
         APPLIB_API void *convert_image(const Image2D &image, vk::Format format, int channels);
 
-        APPLIB_API void filter_mat_assignments(const acul::vector<acul::shared_ptr<MatRangeAssignAttr>> &assignes,
+        APPLIB_API void filter_mat_assignments(const acul::vector<acul::shared_ptr<MaterialRange>> &assignes,
                                                size_t face_count, u64 default_id,
-                                               acul::vector<acul::shared_ptr<MatRangeAssignAttr>> &dst);
+                                               acul::vector<acul::shared_ptr<MaterialRange>> &dst);
 
         namespace mesh
         {
             using namespace umbf::mesh;
             APPLIB_API void fill_vertex_groups(const Model &model, acul::vector<VertexGroup> &groups);
         } // namespace mesh
+
+        class DeviceSelector final : public acul::gpu::physical_device_selector
+        {
+        public:
+            DeviceSelector(const acul::shared_ptr<Device> &config) : _config(config) {}
+
+            virtual const vk::PhysicalDevice *select(const std::vector<vk::PhysicalDevice> &devices) override
+            {
+                if (!_config) return nullptr;
+                i8 device_id = _config->device;
+                if (device_id < 0 || device_id >= (int)devices.size())
+                {
+                    LOG_WARN("Invalid device id found in configuration file");
+                    return nullptr;
+                }
+                return &devices[device_id];
+            }
+
+        private:
+            acul::shared_ptr<Device> _config;
+        };
     } // namespace utils
 } // namespace umbf

@@ -26,12 +26,12 @@ namespace umbf
         dst.spec_version = src.spec_version & 0xFFFFFF;
     }
 
-    bool saveFile(File &file, const acul::io::path &path, acul::bin_stream &src, int compression)
+    bool save_file(File &file, const acul::io::path &path, acul::bin_stream &src, int compression)
     {
-        acul::bin_stream dstStream;
+        acul::bin_stream dst_stream;
         File::Header::Pack pack;
         pack_header(file.header, pack);
-        dstStream.write(UMBF_MAGIC).write(pack);
+        dst_stream.write(UMBF_MAGIC).write(pack);
         if (file.header.compressed)
         {
             acul::vector<char> compressed;
@@ -41,12 +41,12 @@ namespace umbf
                 return false;
             }
 
-            dstStream.write(compressed.data(), compressed.size());
+            dst_stream.write(compressed.data(), compressed.size());
         }
         else
-            dstStream.write(src.data() + src.pos(), src.size() - src.pos());
+            dst_stream.write(src.data() + src.pos(), src.size() - src.pos());
         file.checksum = acul::crc32(0, src.data(), src.size());
-        return acul::io::file::write_binary(path.str(), dstStream.data(), dstStream.size());
+        return acul::io::file::write_binary(path.str(), dst_stream.data(), dst_stream.size());
     }
 
     bool File::save(const acul::string &path, int compression)
@@ -55,7 +55,7 @@ namespace umbf
         {
             acul::bin_stream stream{};
             stream.write(blocks);
-            return saveFile(*this, path, stream, compression);
+            return save_file(*this, path, stream, compression);
         }
         catch (const std::exception &e)
         {
@@ -117,21 +117,21 @@ namespace umbf
     }
 
 #ifndef UMBF_BUILD_MIN
-    bool pack_atlas(size_t maxSize, int discardStep, rectpack2D::flipping_option flip, std::vector<Atlas::Rect> &dst)
+    bool pack_atlas(size_t max_size, int discard_step, rectpack2D::flipping_option flip, std::vector<Atlas::Rect> &dst)
     {
         rectpack2D::callback_result pack_result{rectpack2D::callback_result::CONTINUE_PACKING};
         static std::function<rectpack2D::callback_result(Atlas::Rect &)> report_successfull = [](Atlas::Rect &) {
             return rectpack2D::callback_result::CONTINUE_PACKING;
         };
         static std::function<rectpack2D::callback_result(Atlas::Rect &)> report_unsuccessfull =
-            [&pack_result, maxSize](Atlas::Rect &) {
+            [&pack_result, max_size](Atlas::Rect &) {
                 pack_result = rectpack2D::callback_result::ABORT_PACKING;
-                LOG_INFO("Failed to pack atlas. Max size: %zu", maxSize);
+                LOG_INFO("Failed to pack atlas. Max size: %zu", max_size);
                 return rectpack2D::callback_result::ABORT_PACKING;
             };
 
         rectpack2D::find_best_packing<Atlas::Spaces>(
-            dst, rectpack2D::make_finder_input(maxSize, discardStep, report_successfull, report_unsuccessfull, flip));
+            dst, rectpack2D::make_finder_input(max_size, discard_step, report_successfull, report_unsuccessfull, flip));
         return pack_result != rectpack2D::callback_result::ABORT_PACKING;
     }
 
@@ -206,16 +206,16 @@ namespace umbf
 namespace acul
 {
     template <>
-    bin_stream &bin_stream::write(const vector<acul::shared_ptr<acul::meta::block>> &meta)
+    bin_stream &bin_stream::write(const vector<acul::shared_ptr<umbf::Block>> &meta)
     {
         for (auto &block : meta)
         {
             assert(block);
-            auto *metaStream = meta::resolver->get_stream(block->signature());
-            if (metaStream)
+            auto *meta_stream = umbf::streams::resolver->get_stream(block->signature());
+            if (meta_stream)
             {
                 bin_stream tmp{};
-                metaStream->write(tmp, block.get());
+                meta_stream->write(tmp, block.get());
                 u64 blockSize = tmp.size();
                 write(blockSize).write(block->signature()).write(tmp.data(), blockSize);
             }
@@ -224,19 +224,23 @@ namespace acul
     }
 
     template <>
-    bin_stream &bin_stream::read(vector<acul::shared_ptr<acul::meta::block>> &meta)
+    bin_stream &bin_stream::read(vector<acul::shared_ptr<umbf::Block>> &meta)
     {
         while (_pos < _data.size())
         {
-            acul::meta::header header;
+            struct Header
+            {
+                u32 signature;
+                u64 block_size;
+            } header;
             read(header.block_size);
             if (header.block_size == 0ULL) break;
 
             read(header.signature);
-            auto *meta_stream = meta::resolver->get_stream(header.signature);
+            auto *meta_stream = umbf::streams::resolver->get_stream(header.signature);
             if (meta_stream)
             {
-                acul::shared_ptr<acul::meta::block> block(meta_stream->read(*this));
+                acul::shared_ptr<umbf::Block> block(meta_stream->read(*this));
                 if (block)
                     meta.push_back(block);
                 else
