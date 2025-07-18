@@ -83,33 +83,33 @@ namespace umbf
         {
             enum : u16
             {
-                None = 0x0,
+                none = 0x0,
 #ifndef UMBF_BUILD_MIN
-                Image = 0x0490,
-                Scene = 0xD20C,
-                Material = 0x78DB,
+                image = 0x0490,
+                scene = 0xD20C,
+                material = 0x78DB,
 #endif
-                Target = 0x613E,
-                Library = 0x1A2C,
-                Raw = 0x4D4D
+                target = 0x613E,
+                library = 0x1A2C,
+                raw = 0x4D4D
             };
         } // namespace format
 
         enum : u32
         {
-            Raw = 0xF82E95C8,
-            Device = 0x2AF818FE,
+            raw = 0xF82E95C8,
+            device = 0x2AF818FE,
 #ifndef UMBF_BUILD_MIN
-            Image2D = 0x7684573F,
-            ImageAtlas = 0xA3903A92,
-            Material = 0xA8D0C51E,
-            Scene = 0xB7A3EE80,
-            Mesh = 0xF224B521,
-            MaterialRange = 0xC441E54D, // Material Range Assignments
-            MaterialInfo = 0x6112A229,
+            image = 0x7684573F,
+            image_atlas = 0xA3903A92,
+            material = 0xA8D0C51E,
+            scene = 0xB7A3EE80,
+            mesh = 0xF224B521,
+            material_range = 0xC441E54D, // Material Range Assignments
+            material_info = 0x6112A229,
 #endif
-            Target = 0x0491F4E9,
-            Library = 0x8D7824FA
+            target = 0x0491F4E9,
+            library = 0x8D7824FA
         };
     } // namespace sign_block
 
@@ -144,7 +144,7 @@ namespace umbf
          *
          * @return The signature of the block.
          */
-        virtual u32 signature() const override { return sign_block::Image2D; }
+        virtual u32 signature() const override { return sign_block::image; }
     };
 
     /**
@@ -171,7 +171,7 @@ namespace umbf
          *
          * @return The signature of the block.
          */
-        virtual u32 signature() const override { return sign_block::ImageAtlas; }
+        virtual u32 signature() const override { return sign_block::image_atlas; }
 
         Atlas() : discard_step(0) {}
     };
@@ -215,7 +215,7 @@ namespace umbf
          *
          * @return The signature of the block.
          */
-        virtual u32 signature() const override { return sign_block::Material; }
+        virtual u32 signature() const override { return sign_block::material; }
     };
 
     /**
@@ -252,7 +252,7 @@ namespace umbf
          *
          * @return The signature of the block.
          */
-        virtual u32 signature() const override { return sign_block::Scene; }
+        virtual u32 signature() const override { return sign_block::scene; }
     };
 
     namespace mesh
@@ -331,7 +331,7 @@ namespace umbf
              * @brief Returns the signature of the block.
              * @return The signature of the block.
              */
-            virtual u32 signature() const override { return sign_block::Mesh; }
+            virtual u32 signature() const override { return sign_block::mesh; }
         };
     } // namespace mesh
 
@@ -351,7 +351,7 @@ namespace umbf
          * @brief Returns the signature of the block.
          * @return The signature of the block.
          */
-        virtual u32 signature() const override { return sign_block::MaterialInfo; }
+        virtual u32 signature() const override { return sign_block::material_info; }
     };
 
     /**
@@ -370,7 +370,7 @@ namespace umbf
          * @brief Returns the signature of the block.
          * @return The signature of the block.
          */
-        virtual u32 signature() const override { return sign_block::MaterialRange; }
+        virtual u32 signature() const override { return sign_block::material_range; }
     };
 #endif
 
@@ -389,7 +389,7 @@ namespace umbf
          * @brief Returns the signature of the block.
          * @return The signature of the block.
          */
-        virtual u32 signature() const override { return sign_block::Target; }
+        virtual u32 signature() const override { return sign_block::target; }
     };
 
     // The Library class serves as a storage for other assets. These assets can either be embedded or act as
@@ -409,7 +409,7 @@ namespace umbf
          * @brief Returns the signature of the block.
          * @return The signature of the block.
          */
-        virtual u32 signature() const override { return sign_block::Library; }
+        virtual u32 signature() const override { return sign_block::library; }
 
         /**
          * @brief Retrieves a list of assets associated with a specified path.
@@ -427,7 +427,7 @@ namespace umbf
 
         RawBlock(char *data = nullptr, u64 data_size = 0) : data(data), data_size(data_size) {}
 
-        virtual u32 signature() const { return sign_block::Raw; }
+        virtual u32 signature() const { return sign_block::raw; }
 
         ~RawBlock() { acul::release(data); }
     };
@@ -440,7 +440,7 @@ namespace umbf
         // A value of 1.0 ensures per-sample shading.
         f32 sample_shading = 0.0f;
 
-        virtual u32 signature() const override { return sign_block::Device; }
+        virtual u32 signature() const override { return sign_block::device; }
     };
 
     /**
@@ -525,7 +525,7 @@ namespace umbf
 #ifndef UMBF_BUILD_MIN
         APPLIB_API void write_image(acul::bin_stream &stream, Block *block);
         APPLIB_API Block *read_image(acul::bin_stream &stream);
-        inline Stream image2D = {read_image, write_image};
+        inline Stream image = {read_image, write_image};
 
         APPLIB_API Block *read_image_atlas(acul::bin_stream &stream);
         APPLIB_API void write_image_atlas(acul::bin_stream &stream, Block *block);
@@ -548,7 +548,7 @@ namespace umbf
 
         APPLIB_API Block *read_material_range(acul::bin_stream &stream);
         APPLIB_API void write_material_range(acul::bin_stream &stream, Block *block);
-        inline Stream mat_range_assign = {read_material_range, write_material_range};
+        inline Stream material_range = {read_material_range, write_material_range};
 
         APPLIB_API Block *read_scene(acul::bin_stream &stream);
         APPLIB_API void write_scene(acul::bin_stream &stream, Block *block);

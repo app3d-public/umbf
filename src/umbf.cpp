@@ -67,7 +67,7 @@ namespace umbf
     bool load_file(const acul::io::path &path, acul::bin_stream &dst, File::Header &header)
     {
         acul::vector<char> source;
-        if (acul::io::file::read_binary(path.str(), source) != acul::io::file::op_state::Success) return false;
+        if (acul::io::file::read_binary(path.str(), source) != acul::io::file::op_state::success) return false;
 
         acul::bin_stream source_stream(std::move(source));
         u32 sign_file_format;
@@ -174,7 +174,7 @@ namespace umbf
     void Registry::init(const acul::io::path &path)
     {
         acul::vector<acul::string> files;
-        if (acul::io::file::list_files(path, files) != acul::io::file::op_state::Success)
+        if (acul::io::file::list_files(path, files) != acul::io::file::op_state::success)
             throw acul::runtime_error("Failed to get libraries list");
         for (const auto &entry : files)
         {
@@ -184,7 +184,7 @@ namespace umbf
                 {
                     LOG_INFO("Loading library: %s", entry.c_str());
                     auto asset = File::read_from_disk(entry);
-                    if (!asset || asset->header.type_sign != sign_block::format::Library)
+                    if (!asset || asset->header.type_sign != sign_block::format::library)
                     {
                         LOG_WARN("Failed to load library %s", entry.c_str());
                         continue;
@@ -285,7 +285,7 @@ namespace acul
         {
             if (!node.is_folder)
             {
-                if (node.asset.header.type_sign == umbf::sign_block::format::None)
+                if (node.asset.header.type_sign == umbf::sign_block::format::none)
                     throw acul::runtime_error("Asset is invalid. Possible corrupted file structure");
                 write(node.asset);
             }
@@ -307,7 +307,7 @@ namespace acul
         else if (!node.is_folder)
         {
             read(node.asset);
-            if (node.asset.header.type_sign == umbf::sign_block::format::None)
+            if (node.asset.header.type_sign == umbf::sign_block::format::none)
                 throw acul::runtime_error("UMBF file is invalid. Possible corrupted file structure");
         }
         return *this;
