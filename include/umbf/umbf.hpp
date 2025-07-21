@@ -372,6 +372,18 @@ namespace umbf
          */
         virtual u32 signature() const override { return sign_block::material_range; }
     };
+
+    struct Device : Block
+    {
+        vk::SampleCountFlagBits msaa = vk::SampleCountFlagBits::e1; // The number of samples to use for MSAA.
+        i8 device = -1;                                             // The index of the GPU device to use.
+        // The minimum fraction of sample shading.
+        // A value of 1.0 ensures per-sample shading.
+        f32 sample_shading = 0.0f;
+
+        virtual u32 signature() const override { return sign_block::device; }
+    };
+
 #endif
 
     /**
@@ -430,17 +442,6 @@ namespace umbf
         virtual u32 signature() const { return sign_block::raw; }
 
         ~RawBlock() { acul::release(data); }
-    };
-
-    struct Device : Block
-    {
-        vk::SampleCountFlagBits msaa = vk::SampleCountFlagBits::e1; // The number of samples to use for MSAA.
-        i8 device = -1;                                             // The index of the GPU device to use.
-        // The minimum fraction of sample shading.
-        // A value of 1.0 ensures per-sample shading.
-        f32 sample_shading = 0.0f;
-
-        virtual u32 signature() const override { return sign_block::device; }
     };
 
     /**
@@ -557,19 +558,6 @@ namespace umbf
         APPLIB_API Block *read_mesh(acul::bin_stream &stream);
         APPLIB_API void write_mesh(acul::bin_stream &stream, Block *block);
         inline Stream mesh = {read_mesh, write_mesh};
-#endif
-        APPLIB_API Block *read_target(acul::bin_stream &stream);
-        APPLIB_API void write_target(acul::bin_stream &stream, Block *block);
-        inline Stream target = {read_target, write_target};
-
-        APPLIB_API Block *read_library(acul::bin_stream &stream);
-        APPLIB_API void write_library(acul::bin_stream &stream, Block *block);
-        inline Stream library = {read_library, write_library};
-
-        APPLIB_API Block *read_raw_block(acul::bin_stream &stream);
-        APPLIB_API void write_raw_block(acul::bin_stream &stream, Block *block);
-
-        inline Stream raw_block = {read_raw_block, write_raw_block};
 
         inline void write_device_config(acul::bin_stream &stream, Block *block)
         {
@@ -585,6 +573,19 @@ namespace umbf
         }
 
         constexpr Stream device = {read_device_config, write_device_config};
+#endif
+        APPLIB_API Block *read_target(acul::bin_stream &stream);
+        APPLIB_API void write_target(acul::bin_stream &stream, Block *block);
+        inline Stream target = {read_target, write_target};
+
+        APPLIB_API Block *read_library(acul::bin_stream &stream);
+        APPLIB_API void write_library(acul::bin_stream &stream, Block *block);
+        inline Stream library = {read_library, write_library};
+
+        APPLIB_API Block *read_raw_block(acul::bin_stream &stream);
+        APPLIB_API void write_raw_block(acul::bin_stream &stream, Block *block);
+
+        inline Stream raw_block = {read_raw_block, write_raw_block};
     } // namespace streams
 } // namespace umbf
 

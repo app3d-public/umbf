@@ -1,5 +1,6 @@
 #include <acul/io/file.hpp>
 #include <acul/log.hpp>
+#include <cassert>
 #include <umbf/umbf.hpp>
 #ifndef UMBF_BUILD_MIN
     #include <umbf/utils.hpp>
