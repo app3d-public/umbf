@@ -2,9 +2,7 @@
 #include <acul/log.hpp>
 #include <cassert>
 #include <umbf/umbf.hpp>
-#ifndef UMBF_BUILD_MIN
-    #include <umbf/utils.hpp>
-#endif
+#include <umbf/utils.hpp>
 
 namespace umbf
 {
@@ -117,7 +115,6 @@ namespace umbf
         }
     }
 
-#ifndef UMBF_BUILD_MIN
     bool pack_atlas(size_t max_size, int discard_step, rectpack2D::flipping_option flip, std::vector<Atlas::Rect> &dst)
     {
         rectpack2D::callback_result pack_result{rectpack2D::callback_result::CONTINUE_PACKING};
@@ -139,7 +136,9 @@ namespace umbf
     void fill_atlas_pixels(const acul::shared_ptr<Image2D> &image, const acul::shared_ptr<Atlas> &atlas,
                            const acul::vector<acul::shared_ptr<Image2D>> &src)
     {
-        utils::fill_color_pixels(glm::vec4(0.0f), *image);
+        const size_t pixel_size = image->format.bytes_per_channel * image->channels.size();
+        acul::vector<std::byte> color(pixel_size, std::byte{0});
+        utils::fill_color_pixels(color.data(), *image);
         for (size_t i = 0; i < atlas->pack_data.size(); i++)
         {
             if (!src[i]->pixels) throw acul::runtime_error("Pixels cannot be null");
@@ -152,7 +151,7 @@ namespace umbf
             utils::copy_pixels_to_area(*(src[i]), *image, rect);
         }
     }
-#endif
+
     Library::Node *Library::get_node(const acul::io::path &path)
     {
         Node *current_node = &file_tree;
@@ -217,8 +216,8 @@ namespace acul
             {
                 bin_stream tmp{};
                 meta_stream->write(tmp, block.get());
-                u64 blockSize = tmp.size();
-                write(blockSize).write(block->signature()).write(tmp.data(), blockSize);
+                u64 block_size = tmp.size();
+                write(block_size).write(block->signature()).write(tmp.data(), block_size);
             }
         }
         return write(0ULL);
@@ -262,7 +261,7 @@ namespace acul
         for (auto &asset : dst) read(asset);
         return *this;
     }
-#ifndef UMBF_BUILD_MIN
+    
     template <>
     bin_stream &bin_stream::read(umbf::MaterialNode &dst)
     {
@@ -272,7 +271,6 @@ namespace acul
         dst.texture_id = dst.textured ? (data & 0x7FFF) : 0;
         return *this;
     }
-#endif
 
     template <>
     bin_stream &bin_stream::write(const umbf::Library::Node &node)

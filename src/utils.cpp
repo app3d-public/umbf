@@ -1,145 +1,49 @@
 #include <acul/log.hpp>
+#include <amal/half.hpp>
 #include <numeric>
+#include <oneapi/tbb/parallel_for.h>
 #include <umbf/utils.hpp>
-#include "umbf/umbf.hpp"
 
 namespace umbf
 {
     namespace utils
     {
-        template <typename T>
-        void fill_color_pixels_impl(const glm::vec4 &color, Image2D &image_info)
+        acul::unique_ptr<void> make_clear_pixel(const umbf::ImageFormat &format, size_t channel_count)
         {
-            T *data = (T *)acul::mem_allocator<std::byte>::allocate(image_info.size());
-            if (color[0] == color[1] && color[0] == color[2] && color[0] == color[3])
-                std::fill(data, data + image_info.size(), color[0]);
-            else
-            {
-                assert((image_info.channel_count == 3 || image_info.channel_count == 4) &&
-                       "Fill color only supports RGB or RGBA image");
-                for (vk::DeviceSize i = 0; i < image_info.size(); i += image_info.channel_count)
-                    for (int ch = 0; ch < image_info.channel_count; ch++) data[i + ch] = color[ch];
-            }
-
-            image_info.pixels = data;
+            const size_t pixel_size = channel_count * format.bytes_per_channel;
+            std::byte *data = acul::mem_allocator<std::byte>::allocate(pixel_size);
+            std::memset(data, 0, pixel_size);
+            return acul::unique_ptr<void>(data);
         }
 
-        void fill_color_pixels(const glm::vec4 &color, Image2D &image_info)
+        void fill_color_pixels(void *color_data, Image2D &image_info)
         {
-            switch (image_info.format)
-            {
-                case vk::Format::eR8G8B8Unorm:
-                case vk::Format::eR8G8B8A8Unorm:
-                case vk::Format::eR8G8B8Srgb:
-                case vk::Format::eR8G8B8A8Srgb:
-                case vk::Format::eR8G8B8Uint:
-                case vk::Format::eR8G8B8A8Uint:
-                    fill_color_pixels_impl<u8>(color, image_info);
-                    break;
-                case vk::Format::eR8G8B8Sint:
-                case vk::Format::eR8G8B8A8Sint:
-                case vk::Format::eR8G8B8Snorm:
-                case vk::Format::eR8G8B8A8Snorm:
-                    fill_color_pixels_impl<i8>(color, image_info);
-                    break;
-                case vk::Format::eR16G16B16Unorm:
-                case vk::Format::eR16G16B16A16Unorm:
-                case vk::Format::eR16G16B16Uint:
-                case vk::Format::eR16G16B16A16Uint:
-                    fill_color_pixels_impl<u16>(color, image_info);
-                    break;
-                case vk::Format::eR16G16B16Sint:
-                case vk::Format::eR16G16B16A16Sint:
-                case vk::Format::eR16G16B16Snorm:
-                case vk::Format::eR16G16B16A16Snorm:
-                    fill_color_pixels_impl<i16>(color, image_info);
-                    break;
-                case vk::Format::eR32G32B32Uint:
-                case vk::Format::eR32G32B32A32Uint:
-                    fill_color_pixels_impl<u32>(color, image_info);
-                    break;
-                case vk::Format::eR32G32B32Sint:
-                case vk::Format::eR32G32B32A32Sint:
-                    fill_color_pixels_impl<i32>(color, image_info);
-                    break;
-                case vk::Format::eR16G16B16Sfloat:
-                case vk::Format::eR16G16B16A16Sfloat:
-                    fill_color_pixels_impl<f16>(color, image_info);
-                    break;
-                case vk::Format::eR32G32B32Sfloat:
-                case vk::Format::eR32G32B32A32Sfloat:
-                    fill_color_pixels_impl<f32>(color, image_info);
-                    break;
-                default:
-                    LOG_WARN("Cannot fill pixel buffer. Unsupported format: %s",
-                             vk::to_string(image_info.format).c_str());
-                    break;
-            }
-        }
-
-        template <typename T>
-        void copy_pixels_to_area_impl(const Image2D &src, Image2D &dst, const Atlas::Rect &rect)
-        {
-            const T *pSrc = reinterpret_cast<const T *>(src.pixels);
-            T *pDst = reinterpret_cast<T *>(dst.pixels);
-            if (rect.x + rect.w <= dst.width && rect.y + rect.h <= dst.height)
-                for (int y = 0; y < rect.h; ++y)
-                    memcpy(pDst + ((rect.y + y) * dst.width + rect.x) * dst.channel_count,
-                           pSrc + (y * rect.w) * dst.channel_count, rect.w * dst.channel_count);
-            else
-                throw acul::runtime_error("Dst area is out of image bounds");
+            const size_t pixel_stride = image_info.channels.size() * image_info.format.bytes_per_channel;
+            const size_t total_bytes = image_info.size() * image_info.format.bytes_per_channel;
+            assert(pixel_stride == 0 || total_bytes % pixel_stride != 0);
+            std::byte *dst = acul::mem_allocator<std::byte>::allocate(total_bytes);
+            for (size_t i = 0; i < total_bytes; i += pixel_stride) memcpy(dst + i, color_data, pixel_stride);
+            image_info.pixels = dst;
         }
 
         void copy_pixels_to_area(const Image2D &src, Image2D &dst, const Atlas::Rect &rect)
         {
             if (src.format != dst.format) throw acul::runtime_error("Image format mismatch");
-            switch (dst.format)
+            if (rect.x + rect.w > dst.width || rect.y + rect.h > dst.height)
+                throw acul::runtime_error("Dst area is out of image bounds");
+
+            const size_t bytes_per_pixel = dst.channels.size() * dst.format.bytes_per_channel;
+            const size_t src_row_bytes = rect.w * bytes_per_pixel;
+            const size_t dst_row_bytes = dst.width * bytes_per_pixel;
+
+            const std::byte *src_pixels = static_cast<const std::byte *>(src.pixels);
+            std::byte *dst_pixels = static_cast<std::byte *>(dst.pixels);
+
+            for (int y = 0; y < rect.h; ++y)
             {
-                case vk::Format::eR8G8B8Unorm:
-                case vk::Format::eR8G8B8A8Unorm:
-                case vk::Format::eR8G8B8Srgb:
-                case vk::Format::eR8G8B8A8Srgb:
-                case vk::Format::eR8G8B8Uint:
-                case vk::Format::eR8G8B8A8Uint:
-                    copy_pixels_to_area_impl<u8>(src, dst, rect);
-                    break;
-                case vk::Format::eR8G8B8Sint:
-                case vk::Format::eR8G8B8A8Sint:
-                case vk::Format::eR8G8B8Snorm:
-                case vk::Format::eR8G8B8A8Snorm:
-                    copy_pixels_to_area_impl<i8>(src, dst, rect);
-                    break;
-                case vk::Format::eR16G16B16Unorm:
-                case vk::Format::eR16G16B16A16Unorm:
-                case vk::Format::eR16G16B16Uint:
-                case vk::Format::eR16G16B16A16Uint:
-                    copy_pixels_to_area_impl<u16>(src, dst, rect);
-                    break;
-                case vk::Format::eR16G16B16Sint:
-                case vk::Format::eR16G16B16A16Sint:
-                case vk::Format::eR16G16B16Snorm:
-                case vk::Format::eR16G16B16A16Snorm:
-                    copy_pixels_to_area_impl<i16>(src, dst, rect);
-                    break;
-                case vk::Format::eR32G32B32Uint:
-                case vk::Format::eR32G32B32A32Uint:
-                    copy_pixels_to_area_impl<u32>(src, dst, rect);
-                    break;
-                case vk::Format::eR32G32B32Sint:
-                case vk::Format::eR32G32B32A32Sint:
-                    copy_pixels_to_area_impl<i32>(src, dst, rect);
-                    break;
-                case vk::Format::eR16G16B16Sfloat:
-                case vk::Format::eR16G16B16A16Sfloat:
-                    copy_pixels_to_area_impl<f16>(src, dst, rect);
-                    break;
-                case vk::Format::eR32G32B32Sfloat:
-                case vk::Format::eR32G32B32A32Sfloat:
-                    copy_pixels_to_area_impl<f32>(src, dst, rect);
-                    break;
-                default:
-                    LOG_WARN("Cannot copy pixel buffer. Unsupported format: %s", vk::to_string(dst.format).c_str());
-                    break;
+                const std::byte *src_row = src_pixels + y * src_row_bytes;
+                std::byte *dst_row = dst_pixels + ((rect.y + y) * dst_row_bytes + rect.x * bytes_per_pixel);
+                std::memcpy(dst_row, src_row, src_row_bytes);
             }
         }
 
@@ -180,7 +84,7 @@ namespace umbf
                                 }
                                 else
                                 {
-                                    if constexpr (std::is_same_v<T, f16> || std::is_floating_point_v<T>)
+                                    if constexpr (amal::is_floating_point_v<T>)
                                         buffer[dst_index + ch] = static_cast<T>(src[src_index + ch]) /
                                                                  static_cast<f32>(std::numeric_limits<S>::max());
                                     else
@@ -201,58 +105,72 @@ namespace umbf
 
         // Converts the source image to a specified format and channel depth.
         template <typename T>
-        void *get_image_convert_by_src(vk::Format format, void *source, u64 size, int src_channels, int dst_channels)
+        void *convert_from_format(const ImageFormat &src_format, void *source, u64 size, int src_channels,
+                                  int dst_channels)
         {
-            switch (format)
+            switch (src_format.type)
             {
-                case vk::Format::eR8G8B8A8Srgb:
-                case vk::Format::eR8G8B8A8Uint:
-                case vk::Format::eR8G8B8A8Unorm:
-                    return convert_image_channel_bits<T, u8>(source, size, src_channels, dst_channels);
-                case vk::Format::eR8G8B8A8Sint:
-                case vk::Format::eR8G8B8A8Snorm:
-                    return convert_image_channel_bits<T, i8>(source, size, src_channels, dst_channels);
-                case vk::Format::eR16G16B16A16Uint:
-                    return convert_image_channel_bits<T, u16>(source, size, src_channels, dst_channels);
-                case vk::Format::eR32G32B32A32Uint:
-                    return convert_image_channel_bits<T, u32>(source, size, src_channels, dst_channels);
-                case vk::Format::eR16G16B16A16Sfloat:
-                    return convert_image_channel_bits<T, f16>(source, size, src_channels, dst_channels);
-                case vk::Format::eR32G32B32A32Sfloat:
-                    return convert_image_channel_bits<T, f32>(source, size, src_channels, dst_channels);
+                case ImageFormat::Type::uint:
+                    switch (src_format.bytes_per_channel)
+                    {
+                        case 1:
+                            return convert_image_channel_bits<u8, T>(source, size, src_channels, dst_channels);
+                        case 2:
+                            return convert_image_channel_bits<u16, T>(source, size, src_channels, dst_channels);
+                        case 4:
+                            return convert_image_channel_bits<u32, T>(source, size, src_channels, dst_channels);
+                    }
+                    break;
+                case ImageFormat::Type::sfloat:
+                    switch (src_format.bytes_per_channel)
+                    {
+                        case 2:
+                            return convert_image_channel_bits<f16, T>(source, size, src_channels, dst_channels);
+                        case 4:
+                            return convert_image_channel_bits<f32, T>(source, size, src_channels, dst_channels);
+                    }
+                    break;
                 default:
-                    return nullptr;
+                    break;
             }
+            return nullptr;
         }
 
-        void *convert_image(const Image2D &image, vk::Format format, int channels)
+        void *convert_image(const Image2D &image, ImageFormat format, int dst_channels)
         {
-            switch (image.format)
+            const int src_channels = static_cast<int>(image.channels.size());
+
+            switch (format.type)
             {
-                case vk::Format::eR8G8B8A8Srgb:
-                case vk::Format::eR8G8B8A8Uint:
-                case vk::Format::eR8G8B8A8Unorm:
-                    return get_image_convert_by_src<u8>(format, image.pixels, image.size() / image.bytes_per_channel,
-                                                        image.channel_count, channels);
-                case vk::Format::eR8G8B8A8Sint:
-                case vk::Format::eR8G8B8A8Snorm:
-                    return get_image_convert_by_src<i8>(format, image.pixels, image.size() / image.bytes_per_channel,
-                                                        image.channel_count, channels);
-                case vk::Format::eR16G16B16A16Uint:
-                    return get_image_convert_by_src<u16>(format, image.pixels, image.size() / image.bytes_per_channel,
-                                                         image.channel_count, channels);
-                case vk::Format::eR32G32B32A32Uint:
-                    return get_image_convert_by_src<u32>(format, image.pixels, image.size() / image.bytes_per_channel,
-                                                         image.channel_count, channels);
-                case vk::Format::eR16G16B16A16Sfloat:
-                    return get_image_convert_by_src<f16>(format, image.pixels, image.size() / image.bytes_per_channel,
-                                                         image.channel_count, channels);
-                case vk::Format::eR32G32B32A32Sfloat:
-                    return get_image_convert_by_src<f32>(format, image.pixels, image.size() / image.bytes_per_channel,
-                                                         image.channel_count, channels);
+                case ImageFormat::Type::uint:
+                    switch (format.bytes_per_channel)
+                    {
+                        case 1:
+                            return convert_from_format<u8>(image.format, image.pixels, image.size(), src_channels,
+                                                           dst_channels);
+                        case 2:
+                            return convert_from_format<u16>(image.format, image.pixels, image.size(), src_channels,
+                                                            dst_channels);
+                        case 4:
+                            return convert_from_format<u32>(image.format, image.pixels, image.size(), src_channels,
+                                                            dst_channels);
+                    }
+                    break;
+                case ImageFormat::Type::sfloat:
+                    switch (format.bytes_per_channel)
+                    {
+                        case 2:
+                            return convert_from_format<f16>(image.format, image.pixels, image.size(), src_channels,
+                                                            dst_channels);
+                        case 4:
+                            return convert_from_format<f32>(image.format, image.pixels, image.size(), src_channels,
+                                                            dst_channels);
+                    }
+                    break;
                 default:
-                    return nullptr;
+                    break;
             }
+            return nullptr;
         }
 
         void filter_mat_assignments(const acul::vector<acul::shared_ptr<MaterialRange>> &assignes, size_t faceCount,

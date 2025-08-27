@@ -1,13 +1,8 @@
 #pragma once
 
 #include <acul/log.hpp>
-#include <acul/stream.hpp>
-#ifndef UMBF_BUILD_MIN
-    #include <acul/math.hpp>
-    #include <glm/glm.hpp>
-    #include <rectpack2D/finders_interface.h>
-    #include <vulkan/vulkan.hpp>
-#endif
+#include <amal/integration/acul/bin_stream.hpp>
+#include <rectpack2D/finders_interface.h>
 
 #define UMBF_MAGIC     0xCA9FB393
 #define UMBF_VENDOR_ID 0xBC037D
@@ -84,11 +79,9 @@ namespace umbf
             enum : u16
             {
                 none = 0x0,
-#ifndef UMBF_BUILD_MIN
                 image = 0x0490,
                 scene = 0xD20C,
                 material = 0x78DB,
-#endif
                 target = 0x613E,
                 library = 0x1A2C,
                 raw = 0x4D4D
@@ -98,8 +91,6 @@ namespace umbf
         enum : u32
         {
             raw = 0xF82E95C8,
-            device = 0x2AF818FE,
-#ifndef UMBF_BUILD_MIN
             image = 0x7684573F,
             image_atlas = 0xA3903A92,
             material = 0xA8D0C51E,
@@ -107,24 +98,40 @@ namespace umbf
             mesh = 0xF224B521,
             material_range = 0xC441E54D, // Material Range Assignments
             material_info = 0x6112A229,
-#endif
             target = 0x0491F4E9,
             library = 0x8D7824FA
         };
     } // namespace sign_block
 
-#ifndef UMBF_BUILD_MIN
+    struct ImageFormat
+    {
+        struct Type
+        {
+            enum enum_type : u8
+            {
+                none,
+                uint,
+                sfloat,
+            };
+        };
+        u8 type;
+        u8 bytes_per_channel;
+
+        bool operator==(const ImageFormat &rhs) const
+        {
+            return type == rhs.type && bytes_per_channel == rhs.bytes_per_channel;
+        }
+    };
+
     // Represents a 2D image asset block.
     struct Image2D : Block
     {
     public:
-        u16 width;                                //< Width of the image in pixels.
-        u16 height;                               //< Height of the image in pixels.
-        int channel_count;                        //< Number of color channels in the image.
-        acul::vector<acul::string> channel_names; //< Names of the channels (e.g., "Red", "Green", "Blue").
-        u16 bytes_per_channel;                    //< Number of bytes per channel.
-        void *pixels;                             //< Pointer to the raw pixel data.
-        vk::Format format;                        //<  Vulkan format of the image data.
+        u32 width;                           //< Width of the image in pixels.
+        u32 height;                          //< Height of the image in pixels.
+        acul::vector<acul::string> channels; //< Names of the channels (e.g., "Red", "Green", "Blue").
+        ImageFormat format;                  //< Format of the image data.
+        void *pixels;                        //< Pointer to the raw pixel data.
 
         /**
          * @brief Calculates the size of the image in bytes.
@@ -134,7 +141,7 @@ namespace umbf
          *
          * @return The total size of the image in bytes.
          */
-        vk::DeviceSize size() const { return width * height * bytes_per_channel * channel_count; }
+        size_t size() const { return width * height * format.bytes_per_channel * channels.size(); }
 
         /**
          * @brief Returns the signature of the block.
@@ -191,7 +198,7 @@ namespace umbf
     // Represents a node of material properties.
     struct MaterialNode
     {
-        glm::vec3 rgb;  //< RGB color value for the material.
+        amal::vec3 rgb; //< RGB color value for the material.
         bool textured;  //< Flag indicating if the material is textured.
         i16 texture_id; //< Index of the texture. Defaults to -1 indicating no texture.
     };
@@ -261,14 +268,9 @@ namespace umbf
         /// Indexed structure for rendering purpose
         struct Vertex
         {
-            /// @brief Position
-            glm::vec3 pos{0.0f, 0.0f, 0.0f};
-
-            /// @brief UV coordinates
-            glm::vec2 uv{0.0f, 0.0f};
-
-            /// @brief Normal
-            glm::vec3 normal{0.0f, 0.0f, 0.0f};
+            amal::vec3 pos{0.0f, 0.0f, 0.0f};    // Position
+            amal::vec2 uv{0.0f, 0.0f};           // UV
+            amal::vec3 normal{0.0f, 0.0f, 0.0f}; // Normal
 
             bool operator==(const Vertex &other) const
             {
@@ -297,12 +299,12 @@ namespace umbf
         struct Face
         {
             acul::vector<VertexRef> vertices; ///< List of vertex references that define the face.
-            glm::vec3 normal;                 ///< The normal vector of the face
+            amal::vec3 normal;                ///< The normal vector of the face
             u32 first_vertex;                 ///< Starting index in the index buffer for this face.
             u32 count;                        ///< Number of indices that define this face.
         };
 
-        using AABB = acul::math::min_max<glm::vec3>;
+        using AABB = acul::min_max<amal::vec3>;
 
         // Represents a 3D mesh model.
         struct Model
@@ -316,9 +318,9 @@ namespace umbf
 
         struct Transform
         {
-            glm::vec3 position = {0.0f, 0.0f, 0.0f};
-            glm::vec3 rotation = {0.0f, 0.0f, 0.0f};
-            glm::vec3 scale = {1.0f, 1.0f, 1.0f};
+            amal::vec3 position = {0.0f, 0.0f, 0.0f};
+            amal::vec3 rotation = {0.0f, 0.0f, 0.0f};
+            amal::vec3 scale = {1.0f, 1.0f, 1.0f};
         };
 
         // Represents a block of mesh data.
@@ -372,19 +374,6 @@ namespace umbf
          */
         virtual u32 signature() const override { return sign_block::material_range; }
     };
-
-    struct Device : Block
-    {
-        vk::SampleCountFlagBits msaa = vk::SampleCountFlagBits::e1; // The number of samples to use for MSAA.
-        i8 device = -1;                                             // The index of the GPU device to use.
-        // The minimum fraction of sample shading.
-        // A value of 1.0 ensures per-sample shading.
-        f32 sample_shading = 0.0f;
-
-        virtual u32 signature() const override { return sign_block::device; }
-    };
-
-#endif
 
     /**
      * Structure representing a Target asset.
@@ -523,7 +512,6 @@ namespace umbf
 
         extern APPLIB_API Resolver *resolver;
 
-#ifndef UMBF_BUILD_MIN
         APPLIB_API void write_image(acul::bin_stream &stream, Block *block);
         APPLIB_API Block *read_image(acul::bin_stream &stream);
         inline Stream image = {read_image, write_image};
@@ -559,21 +547,6 @@ namespace umbf
         APPLIB_API void write_mesh(acul::bin_stream &stream, Block *block);
         inline Stream mesh = {read_mesh, write_mesh};
 
-        inline void write_device_config(acul::bin_stream &stream, Block *block)
-        {
-            Device *conf = static_cast<Device *>(block);
-            stream.write(conf->msaa).write(conf->device).write(conf->sample_shading);
-        }
-
-        inline Block *read_device_config(acul::bin_stream &stream)
-        {
-            Device *conf = acul::alloc<Device>();
-            stream.read(conf->msaa).read(conf->device).read(conf->sample_shading);
-            return conf;
-        }
-
-        constexpr Stream device = {read_device_config, write_device_config};
-#endif
         APPLIB_API Block *read_target(acul::bin_stream &stream);
         APPLIB_API void write_target(acul::bin_stream &stream, Block *block);
         inline Stream target = {read_target, write_target};
@@ -637,7 +610,6 @@ namespace acul
     template <>
     bin_stream &bin_stream::read(vector<umbf::File> &dst);
 
-#ifndef UMBF_BUILD_MIN
     template <>
     inline bin_stream &bin_stream::write(const umbf::MaterialNode &src)
     {
@@ -647,7 +619,6 @@ namespace acul
 
     template <>
     bin_stream &bin_stream::read(umbf::MaterialNode &dst);
-#endif
 
     template <>
     bin_stream &bin_stream::write(const umbf::Library::Node &node);
@@ -656,7 +627,6 @@ namespace acul
     bin_stream &bin_stream::read(umbf::Library::Node &node);
 } // namespace acul
 
-#ifndef UMBF_BUILD_MIN
 namespace std
 {
     template <>
@@ -665,11 +635,32 @@ namespace std
         size_t operator()(const umbf::mesh::Vertex &vertex) const
         {
             size_t seed = 0;
-            hash_combine(seed, vertex.pos);
-            hash_combine(seed, vertex.uv);
-            hash_combine(seed, vertex.normal);
+            acul::hash_combine(seed, vertex.pos);
+            acul::hash_combine(seed, vertex.uv);
+            acul::hash_combine(seed, vertex.normal);
             return seed;
         }
     };
 } // namespace std
-#endif
+
+namespace acul
+{
+    inline string to_string(umbf::ImageFormat::Type::enum_type type)
+    {
+        switch (type)
+        {
+            case umbf::ImageFormat::Type::uint:
+                return "uint";
+            case umbf::ImageFormat::Type::sfloat:
+                return "sfloat";
+            default:
+                return "unknown";
+        }
+    }
+
+    inline string to_string(umbf::ImageFormat format)
+    {
+        return acul::format("%dbit %s", format.bytes_per_channel * 8,
+                            to_string((umbf::ImageFormat::Type::enum_type)format.type).c_str());
+    }
+} // namespace acul

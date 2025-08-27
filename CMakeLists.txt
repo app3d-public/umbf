@@ -1,41 +1,35 @@
 cmake_minimum_required(VERSION 3.17)
+
+if(NOT DEFINED ACBT_PROJECT_LOADED)
+    include(cmake/project.cmake)
+endif()
+
 project(umbf
     VERSION 1.0.0
     LANGUAGES CXX C
     DESCRIPTION "UMBF Lib")
 
-foreach(arch AVX512 AVX2 AVX SSE42)
-    if(SIMD_${arch})
-        set(APP_ARCH ${arch})
-        break()
-    endif()
-endforeach()
+if(NOT DEFINED ACBT_LOADED)
+    include(cmake/utils.cmake)
+endif()
 
 set(APP_HNAME UMBF)
 
 configure_file(${TEMPLATES_DIR}/version.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/${PROJECT_NAME}/version.h)
 
-set(SOURCE_FILES
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/umbf.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/stream.cpp"    
-)
-if(NOT ACUL_BUILD_MIN)
-    list(APPEND SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/utils.cpp")
-endif()
-
+add_files(${PROJECT_NAME} RECURSE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 add_library(${PROJECT_NAME} SHARED ${SOURCE_FILES})
 
-if(ACUL_BUILD_MIN)
-    target_compile_definitions(${PROJECT_NAME} PUBLIC UMBF_BUILD_MIN)
-endif()
-
 set_target_properties(${PROJECT_NAME} PROPERTIES CXX_VISIBILITY_PRESET hidden)
+
+add_subdirectory("modules/3rd-party/rectpack2D")
+
 target_compile_definitions(${PROJECT_NAME} PRIVATE -DAPPLIB_BUILD)
 target_include_directories(${PROJECT_NAME} PUBLIC
     "${CMAKE_CURRENT_BINARY_DIR}/include/"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/"
-    "${CMAKE_CURRENT_SOURCE_DIR}/modules/3rd-party/rectpack2D/src/")
-target_link_libraries(${PROJECT_NAME} PRIVATE acul)
+)
+target_link_libraries(${PROJECT_NAME} PUBLIC acul amal rectpack2D)
 
 if(USE_ASAN)
     target_link_options(${PROJECT_NAME} PUBLIC -fsanitize=address -fno-omit-frame-pointer)

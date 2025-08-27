@@ -1,23 +1,20 @@
 #include <acul/log.hpp>
 #include <umbf/umbf.hpp>
+#include <umbf/utils.hpp>
 #include <umbf/version.h>
-#ifndef UMBF_BUILD_MIN
-    #include <umbf/utils.hpp>
-#endif
 
 namespace umbf
 {
     namespace streams
     {
         Resolver *resolver = nullptr;
-#ifndef UMBF_BUILD_MIN
         void write_image_info(acul::bin_stream &stream, Image2D *image)
         {
-            stream.write(image->width).write(image->height).write(static_cast<u16>(image->channel_count));
-            u8 channel_names_size = image->channel_names.size();
-            stream.write(reinterpret_cast<char *>(&channel_names_size), sizeof(u8));
-            for (const auto &str : image->channel_names) stream.write(str);
-            stream.write(image->bytes_per_channel).write(static_cast<u8>(image->format));
+            stream.write(image->width).write(image->height);
+            u8 channels_count = image->channels.size();
+            stream.write(channels_count);
+            for (auto &channel : image->channels) stream.write(channel);
+            stream.write(image->format.bytes_per_channel).write(image->format.type);
         }
 
         void write_image(acul::bin_stream &stream, Block *block)
@@ -30,21 +27,11 @@ namespace umbf
 
         void read_image_info(acul::bin_stream &stream, Image2D *image)
         {
-            stream.read(image->width)
-                .read(image->height)
-                .read(reinterpret_cast<char *>(&image->channel_count), sizeof(u16));
-            u8 channel_list_size;
-            stream.read(channel_list_size);
-            for (size_t i = 0; i < channel_list_size; i++)
-            {
-                acul::string chan;
-                stream.read(chan);
-                image->channel_names.push_back(chan);
-            }
-            stream.read(image->bytes_per_channel);
-            u8 image_format;
-            stream.read(reinterpret_cast<char *>(&image_format), sizeof(u8));
-            image->format = static_cast<vk::Format>(image_format);
+            u8 channels_count;
+            stream.read(image->width).read(image->height).read(channels_count);
+            image->channels.resize(channels_count);
+            for (auto &channel : image->channels) stream.read(channel);
+            stream.read(image->format.bytes_per_channel).read(image->format.type);
         }
 
         Block *read_image(acul::bin_stream &stream)
@@ -107,9 +94,9 @@ namespace umbf
         Block *read_scene(acul::bin_stream &stream)
         {
             Scene *scene = acul::alloc<Scene>();
-            u16 objectCount;
-            stream.read(objectCount);
-            scene->objects.resize(objectCount);
+            u16 object_count;
+            stream.read(object_count);
+            scene->objects.resize(object_count);
             for (auto &object : scene->objects) stream.read(object.id).read(object.name).read(object.meta);
             stream.read(scene->textures).read(scene->materials);
             return scene;
@@ -211,7 +198,6 @@ namespace umbf
             stream.read(block->faces.data(), face_size);
             return block;
         }
-#endif
 
         void write_target(acul::bin_stream &stream, Block *block)
         {
