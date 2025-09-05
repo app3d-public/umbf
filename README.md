@@ -94,7 +94,8 @@ In particular, a Target block stores the checksum of the resource it references,
 Scripts enumerated below are placed in the `scripts` directory.
 
 * **atlas_min_size.py** - estimates the minimum atlas size for a set of images based on JSON configuration.
-> [!NOTE] The result is approximate, but allows quickly evaluating minimal atlas dimensions.
+> [!NOTE]
+> The result is approximate, but allows quickly evaluating minimal atlas dimensions.
 
 * **sign_request.py** generates random block/format signatures in hex format.
 
