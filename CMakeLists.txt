@@ -13,12 +13,10 @@ if(NOT DEFINED ACBT_LOADED)
     include(cmake/utils.cmake)
 endif()
 
-set(APP_HNAME UMBF)
-
-configure_file(${TEMPLATES_DIR}/version.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/${PROJECT_NAME}/version.h)
+gen_version_file(${CMAKE_CURRENT_BINARY_DIR}/include/${PROJECT_NAME}/version.h)
 
 add_files(${PROJECT_NAME} RECURSE "${CMAKE_CURRENT_SOURCE_DIR}/src")
-add_library(${PROJECT_NAME} SHARED ${SOURCE_FILES})
+add_library(${PROJECT_NAME} SHARED ${UMBF_SRC})
 
 set_target_properties(${PROJECT_NAME} PROPERTIES CXX_VISIBILITY_PRESET hidden)
 
