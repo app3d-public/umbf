@@ -89,9 +89,19 @@ In particular, a Target block stores the checksum of the resource it references,
 
 
 ## Related Tools
+### Built-in scripts
 
-Tools for creating, inspecting, and converting UMBF files are available in a separate repository:  
-[umbf-tools](https://git.homedatasrv.ru/app3d/umbftool)
+Scripts enumerated below are placed in the `scripts` directory.
+
+* **atlas_min_size.py** - estimates the minimum atlas size for a set of images based on JSON configuration.
+> [!NOTE] The result is approximate, but allows quickly evaluating minimal atlas dimensions.
+
+* **sign_request.py** generates random block/format signatures in hex format.
+
+### External repositories
+
+- [umbf-convert](https://git.homedatasrv.ru/app3d/umbf-convert)
+- [umbf-viewer](https://git.homedatasrv.ru/app3d/umbf-viewer)
 
 ## Building
 
