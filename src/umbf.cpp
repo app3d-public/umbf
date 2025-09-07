@@ -63,48 +63,43 @@ namespace umbf
         }
     }
 
-    bool load_file(const acul::io::path &path, acul::bin_stream &dst, File::Header &header)
+    bool load_file(acul::bin_stream &source, acul::bin_stream &dst, File::Header &header)
     {
-        acul::vector<char> source;
-        if (acul::io::file::read_binary(path.str(), source) != acul::io::file::op_state::success) return false;
-
-        acul::bin_stream source_stream(std::move(source));
         u32 sign_file_format;
-        source_stream.read(sign_file_format);
+        source.read(sign_file_format);
         if (sign_file_format != UMBF_MAGIC)
         {
             LOG_ERROR("Invalid file signature");
             return false;
         }
         File::Header::Pack pack;
-        source_stream.read(pack);
+        source.read(pack);
         unpack_header(pack, header);
         if (header.compressed)
         {
             acul::vector<char> decompressed;
-            if (!acul::io::file::decompress(source_stream.data() + source_stream.pos(),
-                                            source_stream.size() - source_stream.pos(), decompressed))
+            if (!acul::io::file::decompress(source.data() + source.pos(), source.size() - source.pos(), decompressed))
             {
-                LOG_ERROR("Failed to decompress: %s", path.str().c_str());
+                LOG_ERROR("Failed to decompress file");
                 return false;
             }
             dst = acul::bin_stream(std::move(decompressed));
         }
         else
-            dst = std::move(source_stream);
+            dst = std::move(source);
         return true;
     }
 
-    acul::shared_ptr<File> File::read_from_disk(const acul::string &path)
+    acul::shared_ptr<File> File::read_from_bytes(acul::bin_stream &bytes)
     {
         try
         {
             acul::bin_stream stream{};
             auto asset = acul::make_shared<File>();
-            if (!load_file(path, stream, asset->header)) return nullptr;
+            if (!load_file(bytes, stream, asset->header)) return nullptr;
             auto offset = stream.pos();
             stream.read(asset->blocks);
-            if (asset->blocks.begin() == asset->blocks.end()) LOG_WARN("Meta data not found in '%s'", path.c_str());
+            if (asset->blocks.begin() == asset->blocks.end()) LOG_WARN("UMBF meta data not found");
             asset->checksum = acul::crc32(0, stream.data() + offset, stream.size() - offset);
             return asset;
         }
@@ -113,6 +108,14 @@ namespace umbf
             LOG_ERROR("%s", e.what());
             return nullptr;
         }
+    }
+
+    acul::shared_ptr<File> File::read_from_disk(const acul::string &path)
+    {
+        acul::vector<char> source_bytes;
+        if (acul::io::file::read_binary(path, source_bytes) != acul::io::file::op_state::success) return nullptr;
+        acul::bin_stream source_stream(std::move(source_bytes));
+        return read_from_bytes(source_stream);
     }
 
     bool pack_atlas(size_t max_size, int discard_step, rectpack2D::flipping_option flip, std::vector<Atlas::Rect> &dst)
@@ -237,6 +240,7 @@ namespace acul
             if (header.block_size == 0ULL) break;
 
             read(header.signature);
+            assert(umbf::streams::resolver);
             auto *meta_stream = umbf::streams::resolver->get_stream(header.signature);
             if (meta_stream)
             {
@@ -261,7 +265,7 @@ namespace acul
         for (auto &asset : dst) read(asset);
         return *this;
     }
-    
+
     template <>
     bin_stream &bin_stream::read(umbf::MaterialNode &dst)
     {

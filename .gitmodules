@@ -3,7 +3,10 @@
 	url = https://github.com/TeamHypersomnia/rectpack2D.git
 [submodule "modules/acul"]
 	path = modules/acul
-	url = git@git.dev.lan:app3d/acul.git
+	url = ../acul.git
 [submodule "cmake"]
 	path = cmake
-	url = git@git.dev.lan:app3d/acbt.git
+	url = ../acbt.git
+[submodule "modules/amal"]
+	path = modules/amal
+	url = ../amal.git

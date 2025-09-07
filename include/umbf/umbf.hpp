@@ -41,6 +41,13 @@ namespace umbf
 
         /**
          * @brief Reads and creates an asset from a binary stream.
+         * @param bytes The binary stream containing the asset data.
+         * @return A shared pointer to the created asset.
+         **/
+        static APPLIB_API acul::shared_ptr<File> read_from_bytes(acul::bin_stream &bytes);
+
+        /**
+         * @brief Reads and creates an asset from a binary stream.
          * @param path The path to the asset.
          * @return A shared pointer to the created asset.
          **/

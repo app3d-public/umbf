@@ -22,6 +22,14 @@ set_target_properties(${PROJECT_NAME} PROPERTIES CXX_VISIBILITY_PRESET hidden)
 
 add_subdirectory("modules/3rd-party/rectpack2D")
 
+if(NOT TARGET acul)
+    add_subdirectory(modules/acul)
+endif()
+
+if(NOT TARGET amal)
+    add_subdirectory(modules/amal)
+endif()
+
 target_compile_definitions(${PROJECT_NAME} PRIVATE -DAPPLIB_BUILD)
 target_include_directories(${PROJECT_NAME} PUBLIC
     "${CMAKE_CURRENT_BINARY_DIR}/include/"
@@ -34,7 +42,7 @@ if(USE_ASAN)
 endif(USE_ASAN)
 
 if(WIN32)
-    gen_manifest_lib(${PROJECT_NAME} ${PROJECT_VERSION})
+    gen_manifest_lib(lib${PROJECT_NAME} ${PROJECT_VERSION})
 endif()
 
 set_target_properties(${PROJECT_NAME}
