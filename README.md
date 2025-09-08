@@ -101,8 +101,8 @@ Scripts enumerated below are placed in the `scripts` directory.
 
 ### External repositories
 
-- [umbf-convert](https://git.homedatasrv.ru/app3d/umbf-convert)
-- [umbf-viewer](https://git.homedatasrv.ru/app3d/umbf-viewer)
+- [umbf-convert](https://github.com/app3d-public/umbf-convert)
+- [umbf-viewer](https://github.com/app3d-public/umbf-viewer)
 
 ## Building
 
@@ -120,9 +120,9 @@ Scripts enumerated below are placed in the `scripts` directory.
 ### Bundled submodules
 The following dependencies are included as git submodules and must be checked out when cloning:
 
-- [acbt](https://git.homedatasrv.ru/app3d/acbt)
-- [acul](https://git.homedatasrv.ru/app3d/acul)
-- [amal](https://git.homedatasrv.ru/app3d/amal)
+- [acbt](https://github.com/app3d-public/acbt)
+- [acul](https://github.com/app3d-public/acul)
+- [amal](https://github.com/app3d-public/amal)
 - [rectpack2D](ttps://github.com/TeamHypersomnia/rectpack2D)
 
 ## License
