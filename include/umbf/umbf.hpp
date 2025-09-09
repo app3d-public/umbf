@@ -124,10 +124,14 @@ namespace umbf
         u8 type;
         u8 bytes_per_channel;
 
-        bool operator==(const ImageFormat &rhs) const
+        constexpr bool operator==(const ImageFormat &rhs) const
         {
             return type == rhs.type && bytes_per_channel == rhs.bytes_per_channel;
         }
+
+#if !(defined(__cpp_impl_three_way_comparison) && __cpp_impl_three_way_comparison >= 201907)
+        constexpr bool operator!=(const ImageFormat &rhs) const { return !(*this == rhs); }
+#endif
     };
 
     // Represents a 2D image asset block.
