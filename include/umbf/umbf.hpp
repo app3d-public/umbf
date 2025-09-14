@@ -142,7 +142,7 @@ namespace umbf
         u32 height;                          //< Height of the image in pixels.
         acul::vector<acul::string> channels; //< Names of the channels (e.g., "Red", "Green", "Blue").
         ImageFormat format;                  //< Format of the image data.
-        void *pixels;                        //< Pointer to the raw pixel data.
+        void *pixels = nullptr;              //< Pointer to the raw pixel data.
 
         /**
          * @brief Calculates the size of the image in bytes.

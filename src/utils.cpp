@@ -16,11 +16,12 @@ namespace umbf
             return acul::unique_ptr<void>(data);
         }
 
+
         void fill_color_pixels(void *color_data, Image2D &image_info)
         {
             const size_t pixel_stride = image_info.channels.size() * image_info.format.bytes_per_channel;
             const size_t total_bytes = image_info.size() * image_info.format.bytes_per_channel;
-            assert(pixel_stride == 0 || total_bytes % pixel_stride != 0);
+            assert(pixel_stride == 0 || total_bytes % pixel_stride == 0);
             std::byte *dst = acul::mem_allocator<std::byte>::allocate(total_bytes);
             for (size_t i = 0; i < total_bytes; i += pixel_stride) memcpy(dst + i, color_data, pixel_stride);
             image_info.pixels = dst;
