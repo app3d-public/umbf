@@ -44,7 +44,7 @@ namespace umbf
             {
                 const std::byte *src_row = src_pixels + y * src_row_bytes;
                 std::byte *dst_row = dst_pixels + ((rect.y + y) * dst_row_bytes + rect.x * bytes_per_pixel);
-                std::memcpy(dst_row, src_row, src_row_bytes);
+                memcpy(dst_row, src_row, src_row_bytes);
             }
         }
 
