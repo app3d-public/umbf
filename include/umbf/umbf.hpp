@@ -3,6 +3,7 @@
 #include <acul/hash/hashmap.hpp>
 #include <acul/hash/utils.hpp>
 #include <acul/io/path.hpp>
+#include <acul/op_result.hpp>
 #include <acul/memory/smart_ptr.hpp>
 #include <acul/string/utils.hpp>
 #include <amal/integration/acul/bin_stream.hpp>
@@ -53,9 +54,10 @@ namespace umbf
         /**
          * @brief Reads and creates an asset from a binary stream.
          * @param path The path to the asset.
-         * @return A shared pointer to the created asset.
+         * @param dst The destination shared pointer to store the created asset.
+         * @return The result of the operation.
          **/
-        static APPLIB_API acul::shared_ptr<File> read_from_disk(const acul::string &path);
+        static APPLIB_API acul::op_result read_from_disk(const acul::string &path, acul::shared_ptr<File> &dst);
 
         /**
          * @brief Saves the asset to a file.

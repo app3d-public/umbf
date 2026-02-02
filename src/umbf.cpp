@@ -21,6 +21,12 @@ struct LogContext
 
 namespace umbf
 {
+    APPLIB_API void attach_logger(acul::log::log_service *log_service, acul::log::logger_base *logger) noexcept
+    {
+        g_log.log_service = log_service;
+        g_log.loggger = logger;
+    }
+
     APPLIB_API void pack_header(const File::Header &src, File::Header::Pack &dst)
     {
         dst.vendor_sign = src.vendor_sign & 0xFFFFFF;
@@ -52,7 +58,7 @@ namespace umbf
             auto cr = acul::fs::compress(src.data() + src.pos(), src.size() - src.pos(), compressed, compression);
             if (!cr.success())
             {
-                UMBF_LOG_ERROR("Failed to compress file. Error code: 0x%016" PRIx64, static_cast<u64>(cr));
+                UMBF_LOG_ERROR("Failed to compress file. Error code: 0x%" PRIx64, static_cast<u64>(cr));
                 return false;
             }
 
@@ -97,7 +103,7 @@ namespace umbf
             auto dr = acul::fs::decompress(source.data() + source.pos(), source.size() - source.pos(), decompressed);
             if (!dr.success())
             {
-                UMBF_LOG_ERROR("Failed to decompress file. Error code: 0x%016" PRIx64, static_cast<u64>(dr));
+                UMBF_LOG_ERROR("Failed to decompress file. Error code: 0x%" PRIx64, static_cast<u64>(dr));
                 return false;
             }
             dst = acul::bin_stream(std::move(decompressed));
@@ -127,12 +133,13 @@ namespace umbf
         }
     }
 
-    acul::shared_ptr<File> File::read_from_disk(const acul::string &path)
+    acul::op_result File::read_from_disk(const acul::string &path, acul::shared_ptr<File> &dst)
     {
         acul::vector<char> source_bytes;
-        if (acul::fs::read_binary(path, source_bytes)) return nullptr;
+        if (!acul::fs::read_binary(path, source_bytes)) return acul::make_op_error(ACUL_OP_READ_ERROR);
         acul::bin_stream source_stream(std::move(source_bytes));
-        return read_from_bytes(source_stream);
+        dst = read_from_bytes(source_stream);
+        return dst ? acul::make_op_success() : acul::make_op_error(ACUL_OP_ERROR_GENERIC);
     }
 
     bool pack_atlas(size_t max_size, int discard_step, rectpack2D::flipping_option flip, std::vector<Atlas::Rect> &dst)
@@ -197,7 +204,7 @@ namespace umbf
         auto lr = acul::fs::list_files(path, files);
         if (!lr.success())
             throw acul::runtime_error(
-                acul::format("Failed to list files. Error code: 0x%016" PRIx64, static_cast<u64>(lr)));
+                acul::format("Failed to list files. Error code: 0x%" PRIx64, static_cast<u64>(lr)));
         for (const auto &entry : files)
         {
             if (acul::fs::get_extension(entry) == ".umlib")
@@ -205,10 +212,18 @@ namespace umbf
                 try
                 {
                     UMBF_LOG_INFO("Loading umbf library: %s", entry.c_str());
-                    auto asset = File::read_from_disk(entry);
-                    if (!asset || asset->header.type_sign != sign_block::format::library)
+                    acul::shared_ptr<File> asset;
+                    auto res = File::read_from_disk(entry, asset);
+                    if (!res.success())
                     {
-                        UMBF_LOG_WARN("Failed to load umbf library %s", entry.c_str());
+                        UMBF_LOG_WARN("Failed to load umbf library %s. Error code: 0x%" PRIx64, entry.c_str(),
+                                      static_cast<u64>(res));
+                        continue;
+                    }
+                    if (asset->header.type_sign != sign_block::format::library)
+                    {
+                        UMBF_LOG_WARN("Failed to load umbf library %s. Wrong file type: 0x%x", entry.c_str(),
+                                      asset->header.type_sign);
                         continue;
                     }
                     auto library = acul::static_pointer_cast<Library>(asset->blocks.front());
