@@ -15,13 +15,6 @@ endif()
 
 gen_version_file(${CMAKE_CURRENT_BINARY_DIR}/include/${PROJECT_NAME}/version.h)
 
-add_files(${PROJECT_NAME} RECURSE "${CMAKE_CURRENT_SOURCE_DIR}/src")
-add_library(${PROJECT_NAME} SHARED ${UMBF_SRC})
-
-set_target_properties(${PROJECT_NAME} PROPERTIES CXX_VISIBILITY_PRESET hidden)
-
-add_subdirectory("modules/3rd-party/rectpack2D")
-
 if(NOT TARGET acul)
     add_subdirectory(modules/acul)
 endif()
@@ -29,6 +22,11 @@ endif()
 if(NOT TARGET amal)
     add_subdirectory(modules/amal)
 endif()
+
+add_subdirectory("modules/3rd-party/rectpack2D")
+add_files(${PROJECT_NAME} RECURSE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+add_library(${PROJECT_NAME} SHARED ${UMBF_SRC})
+set_target_properties(${PROJECT_NAME} PROPERTIES CXX_VISIBILITY_PRESET hidden)
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE -DAPPLIB_BUILD)
 target_include_directories(${PROJECT_NAME} PUBLIC
