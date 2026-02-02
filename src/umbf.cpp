@@ -1,8 +1,23 @@
-#include <acul/io/file.hpp>
+#include <acul/io/fs/file.hpp>
+#include <acul/io/fs/path.hpp>
 #include <acul/log.hpp>
-#include <cassert>
+#include <inttypes.h>
 #include <umbf/umbf.hpp>
 #include <umbf/utils.hpp>
+
+struct LogContext
+{
+    acul::log::log_service *log_service;
+    acul::log::logger_base *loggger;
+} g_log{nullptr, nullptr};
+
+#define UMBF_LOG_DEFAULT(level, ...) acul::log::write(g_log.log_service, g_log.loggger, level, __VA_ARGS__)
+#define UMBF_LOG_INFO(...)           UMBF_LOG_DEFAULT(acul::log::level::info, __VA_ARGS__)
+#define UMBF_LOG_DEBUG(...)          UMBF_LOG_DEFAULT(acul::log::level::debug, __VA_ARGS__)
+#define UMBF_LOG_TRACE(...)          UMBF_LOG_DEFAULT(acul::log::level::trace, __VA_ARGS__)
+#define UMBF_LOG_WARN(...)           UMBF_LOG_DEFAULT(acul::log::level::warn, __VA_ARGS__)
+#define UMBF_LOG_ERROR(...)          UMBF_LOG_DEFAULT(acul::log::level::error, __VA_ARGS__)
+#define UMBF_LOG_FATAL(...)          UMBF_LOG_DEFAULT(acul::log::level::fatal, __VA_ARGS__)
 
 namespace umbf
 {
@@ -25,7 +40,7 @@ namespace umbf
         dst.spec_version = src.spec_version & 0xFFFFFF;
     }
 
-    bool save_file(File &file, const acul::io::path &path, acul::bin_stream &src, int compression)
+    bool save_file(File &file, const acul::path &path, acul::bin_stream &src, int compression)
     {
         acul::bin_stream dst_stream;
         File::Header::Pack pack;
@@ -34,9 +49,10 @@ namespace umbf
         if (file.header.compressed)
         {
             acul::vector<char> compressed;
-            if (!acul::io::file::compress(src.data() + src.pos(), src.size() - src.pos(), compressed, compression))
+            auto cr = acul::fs::compress(src.data() + src.pos(), src.size() - src.pos(), compressed, compression);
+            if (!cr.success())
             {
-                LOG_ERROR("Failed to compress: %s", path.str().c_str());
+                UMBF_LOG_ERROR("Failed to compress file. Error code: 0x%016" PRIx64, static_cast<u64>(cr));
                 return false;
             }
 
@@ -45,7 +61,7 @@ namespace umbf
         else
             dst_stream.write(src.data() + src.pos(), src.size() - src.pos());
         file.checksum = acul::crc32(0, src.data(), src.size());
-        return acul::io::file::write_binary(path.str(), dst_stream.data(), dst_stream.size());
+        return acul::fs::write_binary(path.str(), dst_stream.data(), dst_stream.size());
     }
 
     bool File::save(const acul::string &path, int compression)
@@ -58,7 +74,7 @@ namespace umbf
         }
         catch (const std::exception &e)
         {
-            LOG_ERROR("Asset write error: %s", e.what());
+            UMBF_LOG_ERROR("UMBF write error: %s", e.what());
             return false;
         }
     }
@@ -69,7 +85,7 @@ namespace umbf
         source.read(sign_file_format);
         if (sign_file_format != UMBF_MAGIC)
         {
-            LOG_ERROR("Invalid file signature");
+            UMBF_LOG_ERROR("Invalid file signature");
             return false;
         }
         File::Header::Pack pack;
@@ -78,9 +94,10 @@ namespace umbf
         if (header.compressed)
         {
             acul::vector<char> decompressed;
-            if (!acul::io::file::decompress(source.data() + source.pos(), source.size() - source.pos(), decompressed))
+            auto dr = acul::fs::decompress(source.data() + source.pos(), source.size() - source.pos(), decompressed);
+            if (!dr.success())
             {
-                LOG_ERROR("Failed to decompress file");
+                UMBF_LOG_ERROR("Failed to decompress file. Error code: 0x%016" PRIx64, static_cast<u64>(dr));
                 return false;
             }
             dst = acul::bin_stream(std::move(decompressed));
@@ -99,13 +116,13 @@ namespace umbf
             if (!load_file(bytes, stream, asset->header)) return nullptr;
             auto offset = stream.pos();
             stream.read(asset->blocks);
-            if (asset->blocks.begin() == asset->blocks.end()) LOG_WARN("UMBF meta data not found");
+            if (asset->blocks.begin() == asset->blocks.end()) UMBF_LOG_WARN("UMBF meta data not found");
             asset->checksum = acul::crc32(0, stream.data() + offset, stream.size() - offset);
             return asset;
         }
         catch (std::exception &e)
         {
-            LOG_ERROR("%s", e.what());
+            UMBF_LOG_ERROR("%s", e.what());
             return nullptr;
         }
     }
@@ -113,7 +130,7 @@ namespace umbf
     acul::shared_ptr<File> File::read_from_disk(const acul::string &path)
     {
         acul::vector<char> source_bytes;
-        if (acul::io::file::read_binary(path, source_bytes) != acul::io::file::op_state::success) return nullptr;
+        if (acul::fs::read_binary(path, source_bytes)) return nullptr;
         acul::bin_stream source_stream(std::move(source_bytes));
         return read_from_bytes(source_stream);
     }
@@ -127,7 +144,7 @@ namespace umbf
         static std::function<rectpack2D::callback_result(Atlas::Rect &)> report_unsuccessfull =
             [&pack_result, max_size](Atlas::Rect &) {
                 pack_result = rectpack2D::callback_result::ABORT_PACKING;
-                LOG_INFO("Failed to pack atlas. Max size: %zu", max_size);
+                UMBF_LOG_INFO("Failed to pack atlas. Max size: %zu", max_size);
                 return rectpack2D::callback_result::ABORT_PACKING;
             };
 
@@ -155,7 +172,7 @@ namespace umbf
         }
     }
 
-    Library::Node *Library::get_node(const acul::io::path &path)
+    Library::Node *Library::get_node(const acul::path &path)
     {
         Node *current_node = &file_tree;
         for (const auto &it : path)
@@ -167,38 +184,40 @@ namespace umbf
                 current_node = &(*child_it);
             else
             {
-                LOG_ERROR("Path not found in the library: %s", path.str().c_str());
+                UMBF_LOG_ERROR("Path not found in the umbf library: %s", path.str().c_str());
                 return nullptr;
             }
         }
         return current_node;
     }
 
-    void Registry::init(const acul::io::path &path)
+    void Registry::init(const acul::path &path)
     {
         acul::vector<acul::string> files;
-        if (acul::io::file::list_files(path, files) != acul::io::file::op_state::success)
-            throw acul::runtime_error("Failed to get libraries list");
+        auto lr = acul::fs::list_files(path, files);
+        if (!lr.success())
+            throw acul::runtime_error(
+                acul::format("Failed to list files. Error code: 0x%016" PRIx64, static_cast<u64>(lr)));
         for (const auto &entry : files)
         {
-            if (acul::io::get_extension(entry) == ".umlib")
+            if (acul::fs::get_extension(entry) == ".umlib")
             {
                 try
                 {
-                    LOG_INFO("Loading library: %s", entry.c_str());
+                    UMBF_LOG_INFO("Loading umbf library: %s", entry.c_str());
                     auto asset = File::read_from_disk(entry);
                     if (!asset || asset->header.type_sign != sign_block::format::library)
                     {
-                        LOG_WARN("Failed to load library %s", entry.c_str());
+                        UMBF_LOG_WARN("Failed to load umbf library %s", entry.c_str());
                         continue;
                     }
                     auto library = acul::static_pointer_cast<Library>(asset->blocks.front());
                     _libraries.emplace(library->file_tree.name, library);
                     asset->blocks.clear();
                 }
-                catch (...)
+                catch (const std::exception &e)
                 {
-                    LOG_WARN("Failed to load library %s", entry.c_str());
+                    UMBF_LOG_WARN("Failed to load umbf library. Error: %s", e.what());
                     continue;
                 }
             }
@@ -248,7 +267,7 @@ namespace acul
                 if (block)
                     meta.push_back(block);
                 else
-                    LOG_WARN("Failed to read meta block: 0x%08x", header.signature);
+                    UMBF_LOG_WARN("Failed to read umbf meta block: 0x%08x", header.signature);
             }
             else
                 shift(header.block_size);
@@ -289,7 +308,7 @@ namespace acul
             if (!node.is_folder)
             {
                 if (node.asset.header.type_sign == umbf::sign_block::format::none)
-                    throw acul::runtime_error("Asset is invalid. Possible corrupted file structure");
+                    throw acul::runtime_error("Umbf asset is invalid. Possible corrupted file structure");
                 write(node.asset);
             }
         }
@@ -311,7 +330,7 @@ namespace acul
         {
             read(node.asset);
             if (node.asset.header.type_sign == umbf::sign_block::format::none)
-                throw acul::runtime_error("UMBF file is invalid. Possible corrupted file structure");
+                throw acul::runtime_error("Umbf file is invalid. Possible corrupted file structure");
         }
         return *this;
     }

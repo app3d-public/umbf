@@ -37,10 +37,6 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 )
 target_link_libraries(${PROJECT_NAME} PUBLIC acul amal rectpack2D)
 
-if(USE_ASAN)
-    target_link_options(${PROJECT_NAME} PUBLIC -fsanitize=address -fno-omit-frame-pointer)
-endif(USE_ASAN)
-
 if(WIN32)
     gen_manifest_lib(lib${PROJECT_NAME} ${PROJECT_VERSION})
 endif()

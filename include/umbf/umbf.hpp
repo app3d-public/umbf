@@ -1,6 +1,10 @@
 #pragma once
 
-#include <acul/log.hpp>
+#include <acul/hash/hashmap.hpp>
+#include <acul/hash/utils.hpp>
+#include <acul/io/path.hpp>
+#include <acul/memory/smart_ptr.hpp>
+#include <acul/string/utils.hpp>
 #include <amal/integration/acul/bin_stream.hpp>
 #include <rectpack2D/finders_interface.h>
 
@@ -428,7 +432,7 @@ namespace umbf
          * @param path Filesystem path to query for assets.
          * @return File search result
          */
-        Node *get_node(const acul::io::path &path);
+        Node *get_node(const acul::path &path);
     };
 
     // Meta block reserved for common external resourcees
@@ -484,7 +488,7 @@ namespace umbf
         const_iterator end() const { return _libraries.end(); }
         const_iterator cend() const { return _libraries.cend(); }
 
-        void init(const acul::io::path &path);
+        void init(const acul::path &path);
 
     private:
         acul::hashmap<acul::string, acul::shared_ptr<Library>> _libraries;
@@ -512,12 +516,7 @@ namespace umbf
             virtual const Stream *get_stream(u32 signature) override
             {
                 auto it = streams.find(signature);
-                if (it == streams.end())
-                {
-                    LOG_ERROR("Failed to recognize meta stream signature: 0x%08x", signature);
-                    return nullptr;
-                }
-                return it->second;
+                return it == streams.end() ? nullptr : it->second;
             }
         };
 
