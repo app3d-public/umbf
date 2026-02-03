@@ -145,10 +145,9 @@ namespace umbf
     bool pack_atlas(size_t max_size, int discard_step, rectpack2D::flipping_option flip, std::vector<Atlas::Rect> &dst)
     {
         rectpack2D::callback_result pack_result{rectpack2D::callback_result::CONTINUE_PACKING};
-        static std::function<rectpack2D::callback_result(Atlas::Rect &)> report_successfull = [](Atlas::Rect &) {
-            return rectpack2D::callback_result::CONTINUE_PACKING;
-        };
-        static std::function<rectpack2D::callback_result(Atlas::Rect &)> report_unsuccessfull =
+        static acul::unique_function<rectpack2D::callback_result(Atlas::Rect &)> report_successfull =
+            [](Atlas::Rect &) { return rectpack2D::callback_result::CONTINUE_PACKING; };
+        static acul::unique_function<rectpack2D::callback_result(Atlas::Rect &)> report_unsuccessfull =
             [&pack_result, max_size](Atlas::Rect &) {
                 pack_result = rectpack2D::callback_result::ABORT_PACKING;
                 UMBF_LOG_INFO("Failed to pack atlas. Max size: %zu", max_size);
