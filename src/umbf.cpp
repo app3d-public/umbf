@@ -8,10 +8,10 @@
 struct LogContext
 {
     acul::log::log_service *log_service;
-    acul::log::logger_base *loggger;
+    acul::log::logger_base *logger;
 } g_log{nullptr, nullptr};
 
-#define UMBF_LOG_DEFAULT(level, ...) acul::log::write(g_log.log_service, g_log.loggger, level, __VA_ARGS__)
+#define UMBF_LOG_DEFAULT(level, ...) acul::log::write(g_log.log_service, g_log.logger, level, __VA_ARGS__)
 #define UMBF_LOG_INFO(...)           UMBF_LOG_DEFAULT(acul::log::level::info, __VA_ARGS__)
 #define UMBF_LOG_DEBUG(...)          UMBF_LOG_DEFAULT(acul::log::level::debug, __VA_ARGS__)
 #define UMBF_LOG_TRACE(...)          UMBF_LOG_DEFAULT(acul::log::level::trace, __VA_ARGS__)
@@ -24,7 +24,7 @@ namespace umbf
     APPLIB_API void attach_logger(acul::log::log_service *log_service, acul::log::logger_base *logger) noexcept
     {
         g_log.log_service = log_service;
-        g_log.loggger = logger;
+        g_log.logger = logger;
     }
 
     APPLIB_API void pack_header(const File::Header &src, File::Header::Pack &dst)
@@ -58,7 +58,7 @@ namespace umbf
             auto cr = acul::fs::compress(src.data() + src.pos(), src.size() - src.pos(), compressed, compression);
             if (!cr.success())
             {
-                UMBF_LOG_ERROR("Failed to compress file. Error code: 0x%" PRIx64, static_cast<u64>(cr));
+                UMBF_LOG_ERROR("Failed to compress file. Error code: 0x%016" PRIx64, static_cast<u64>(cr));
                 return false;
             }
 
@@ -103,7 +103,7 @@ namespace umbf
             auto dr = acul::fs::decompress(source.data() + source.pos(), source.size() - source.pos(), decompressed);
             if (!dr.success())
             {
-                UMBF_LOG_ERROR("Failed to decompress file. Error code: 0x%" PRIx64, static_cast<u64>(dr));
+                UMBF_LOG_ERROR("Failed to decompress file. Error code: 0x%016" PRIx64, static_cast<u64>(dr));
                 return false;
             }
             dst = acul::bin_stream(std::move(decompressed));
@@ -142,12 +142,12 @@ namespace umbf
         return dst ? acul::make_op_success() : acul::make_op_error(ACUL_OP_ERROR_GENERIC);
     }
 
-    bool pack_atlas(size_t max_size, int discard_step, rectpack2D::flipping_option flip, std::vector<Atlas::Rect> &dst)
+    bool pack_atlas(size_t max_size, int discard_step, rectpack2D::flipping_option flip, acul::vector<Atlas::Rect> &dst)
     {
         rectpack2D::callback_result pack_result{rectpack2D::callback_result::CONTINUE_PACKING};
-        static acul::unique_function<rectpack2D::callback_result(Atlas::Rect &)> report_successfull =
+        acul::unique_function<rectpack2D::callback_result(Atlas::Rect &)> report_successfull =
             [](Atlas::Rect &) { return rectpack2D::callback_result::CONTINUE_PACKING; };
-        static acul::unique_function<rectpack2D::callback_result(Atlas::Rect &)> report_unsuccessfull =
+        acul::unique_function<rectpack2D::callback_result(Atlas::Rect &)> report_unsuccessfull =
             [&pack_result, max_size](Atlas::Rect &) {
                 pack_result = rectpack2D::callback_result::ABORT_PACKING;
                 UMBF_LOG_INFO("Failed to pack atlas. Max size: %zu", max_size);
@@ -203,7 +203,7 @@ namespace umbf
         auto lr = acul::fs::list_files(path, files);
         if (!lr.success())
             throw acul::runtime_error(
-                acul::format("Failed to list files. Error code: 0x%" PRIx64, static_cast<u64>(lr)));
+                acul::format("Failed to list files. Error code: 0x%016" PRIx64, static_cast<u64>(lr)));
         for (const auto &entry : files)
         {
             if (acul::fs::get_extension(entry) == ".umlib")
@@ -215,7 +215,7 @@ namespace umbf
                     auto res = File::read_from_disk(entry, asset);
                     if (!res.success())
                     {
-                        UMBF_LOG_WARN("Failed to load umbf library %s. Error code: 0x%" PRIx64, entry.c_str(),
+                        UMBF_LOG_WARN("Failed to load umbf library %s. Error code: 0x%16" PRIx64, entry.c_str(),
                                       static_cast<u64>(res));
                         continue;
                     }

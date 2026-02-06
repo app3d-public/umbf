@@ -16,11 +16,10 @@ namespace umbf
             return acul::unique_ptr<void>(data);
         }
 
-
         void fill_color_pixels(void *color_data, Image2D &image_info)
         {
             const size_t pixel_stride = image_info.channels.size() * image_info.format.bytes_per_channel;
-            const size_t total_bytes = image_info.size() * image_info.format.bytes_per_channel;
+            const size_t total_bytes = image_info.size();
             assert(pixel_stride == 0 || total_bytes % pixel_stride == 0);
             std::byte *dst = acul::mem_allocator<std::byte>::allocate(total_bytes);
             for (size_t i = 0; i < total_bytes; i += pixel_stride) memcpy(dst + i, color_data, pixel_stride);
@@ -174,26 +173,27 @@ namespace umbf
             return nullptr;
         }
 
-        void filter_mat_assignments(const acul::vector<acul::shared_ptr<MaterialRange>> &assignes, size_t faceCount,
+        void filter_mat_assignments(const acul::vector<acul::shared_ptr<MaterialRange>> &assignes, size_t face_count,
                                     u64 default_id, acul::vector<acul::shared_ptr<MaterialRange>> &dst)
         {
-            auto defaultAssign = acul::make_shared<MaterialRange>();
-            defaultAssign->mat_id = default_id;
-            defaultAssign->faces.resize(faceCount);
-            std::iota(defaultAssign->faces.begin(), defaultAssign->faces.end(), 0);
+            auto default_assign = acul::make_shared<MaterialRange>();
+            default_assign->mat_id = default_id;
+            default_assign->faces.resize(face_count);
+            std::iota(default_assign->faces.begin(), default_assign->faces.end(), 0);
 
             if (assignes.empty())
-                dst.push_back(defaultAssign);
+                dst.push_back(default_assign);
             else
             {
-                acul::vector<bool> faceIncluded(faceCount, false);
+                acul::vector<bool> face_included(face_count, false);
 
                 for (const auto &assign : assignes)
-                    for (const auto &face : assign->faces) faceIncluded[face] = true;
-                defaultAssign->faces.erase(std::remove_if(defaultAssign->faces.begin(), defaultAssign->faces.end(),
-                                                          [&](u32 index) { return faceIncluded[index]; }),
-                                           defaultAssign->faces.end());
-                if (!defaultAssign->faces.empty()) dst.push_back(defaultAssign);
+                    for (u32 face : assign->faces)
+                        if (face < face_count) face_included[face] = true;
+                default_assign->faces.erase(std::remove_if(default_assign->faces.begin(), default_assign->faces.end(),
+                                                           [&](u32 index) { return face_included[index]; }),
+                                            default_assign->faces.end());
+                if (!default_assign->faces.empty()) dst.push_back(default_assign);
                 for (const auto &assign : assignes) dst.push_back(assign);
             }
         }

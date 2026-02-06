@@ -184,7 +184,7 @@ namespace umbf
         using Rect = rectpack2D::output_rect_t<Spaces>;
 
         u16 discard_step;            //< Step used for discarding textures in the atlas.
-        std::vector<Rect> pack_data; //< Data about the placement of images within the atlas.
+        acul::vector<Rect> pack_data; //< Data about the placement of images within the atlas.
         i16 padding;                 //< Padding between images in the atlas.
 
         /**
@@ -203,7 +203,7 @@ namespace umbf
     /// @brief Pack atlas
     /// @return Returns true on success otherwise returns false
     APPLIB_API bool pack_atlas(size_t max_size, int discard_step, rectpack2D::flipping_option flip,
-                               std::vector<Atlas::Rect> &dst);
+                               acul::vector<Atlas::Rect> &dst);
 
     /// @brief Fill image pixels data after packing atlas
     /// @param image Image block
