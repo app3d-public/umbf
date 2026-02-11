@@ -1,3 +1,4 @@
+#include <acul/functional/unique_function.hpp>
 #include <acul/io/fs/file.hpp>
 #include <acul/io/fs/path.hpp>
 #include <acul/log.hpp>
@@ -145,8 +146,9 @@ namespace umbf
     bool pack_atlas(size_t max_size, int discard_step, rectpack2D::flipping_option flip, acul::vector<Atlas::Rect> &dst)
     {
         rectpack2D::callback_result pack_result{rectpack2D::callback_result::CONTINUE_PACKING};
-        acul::unique_function<rectpack2D::callback_result(Atlas::Rect &)> report_successfull =
-            [](Atlas::Rect &) { return rectpack2D::callback_result::CONTINUE_PACKING; };
+        acul::unique_function<rectpack2D::callback_result(Atlas::Rect &)> report_successfull = [](Atlas::Rect &) {
+            return rectpack2D::callback_result::CONTINUE_PACKING;
+        };
         acul::unique_function<rectpack2D::callback_result(Atlas::Rect &)> report_unsuccessfull =
             [&pack_result, max_size](Atlas::Rect &) {
                 pack_result = rectpack2D::callback_result::ABORT_PACKING;

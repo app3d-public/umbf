@@ -3,11 +3,12 @@
 #include <acul/hash/hashmap.hpp>
 #include <acul/hash/utils.hpp>
 #include <acul/io/path.hpp>
-#include <acul/op_result.hpp>
 #include <acul/memory/smart_ptr.hpp>
+#include <acul/op_result.hpp>
 #include <acul/string/utils.hpp>
 #include <amal/integration/acul/bin_stream.hpp>
 #include <rectpack2D/finders_interface.h>
+
 
 #define UMBF_MAGIC     0xCA9FB393
 #define UMBF_VENDOR_ID 0xBC037D
@@ -183,9 +184,9 @@ namespace umbf
         using Spaces = rectpack2D::empty_spaces<false, rectpack2D::default_empty_spaces>;
         using Rect = rectpack2D::output_rect_t<Spaces>;
 
-        u16 discard_step;            //< Step used for discarding textures in the atlas.
+        u16 discard_step;             //< Step used for discarding textures in the atlas.
         acul::vector<Rect> pack_data; //< Data about the placement of images within the atlas.
-        i16 padding;                 //< Padding between images in the atlas.
+        i16 padding;                  //< Padding between images in the atlas.
 
         /**
          * @brief Returns the signature of the atlas block.
