@@ -23,7 +23,6 @@ if(NOT TARGET amal)
     add_subdirectory(modules/amal)
 endif()
 
-add_subdirectory("modules/3rd-party/rectpack2D")
 add_files(${PROJECT_NAME} RECURSE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 add_library(${PROJECT_NAME} SHARED ${UMBF_SRC})
 set_target_properties(${PROJECT_NAME} PROPERTIES CXX_VISIBILITY_PRESET hidden)
@@ -33,7 +32,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
     "${CMAKE_CURRENT_BINARY_DIR}/include/"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/"
 )
-target_link_libraries(${PROJECT_NAME} PUBLIC acul amal rectpack2D)
+target_link_libraries(${PROJECT_NAME} PUBLIC acul amal)
 
 if(WIN32)
     gen_manifest_lib(lib${PROJECT_NAME} ${PROJECT_VERSION})

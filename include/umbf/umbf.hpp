@@ -6,8 +6,8 @@
 #include <acul/memory/smart_ptr.hpp>
 #include <acul/op_result.hpp>
 #include <acul/string/utils.hpp>
+#include <amal/rect.hpp>
 #include <amal/integration/acul/bin_stream.hpp>
-#include <rectpack2D/finders_interface.h>
 
 
 #define UMBF_MAGIC     0xCA9FB393
@@ -181,11 +181,7 @@ namespace umbf
      */
     struct Atlas : Block
     {
-        using Spaces = rectpack2D::empty_spaces<false, rectpack2D::default_empty_spaces>;
-        using Rect = rectpack2D::output_rect_t<Spaces>;
-
-        u16 discard_step;             //< Step used for discarding textures in the atlas.
-        acul::vector<Rect> pack_data; //< Data about the placement of images within the atlas.
+        acul::vector<amal::irect> pack_data; //< Data about the placement of images within the atlas.
         i16 padding;                  //< Padding between images in the atlas.
 
         /**
@@ -197,14 +193,7 @@ namespace umbf
          * @return The signature of the block.
          */
         virtual u32 signature() const override { return sign_block::image_atlas; }
-
-        Atlas() : discard_step(0) {}
     };
-
-    /// @brief Pack atlas
-    /// @return Returns true on success otherwise returns false
-    APPLIB_API bool pack_atlas(size_t max_size, int discard_step, rectpack2D::flipping_option flip,
-                               acul::vector<Atlas::Rect> &dst);
 
     /// @brief Fill image pixels data after packing atlas
     /// @param image Image block

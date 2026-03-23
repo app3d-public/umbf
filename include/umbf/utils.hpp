@@ -1,5 +1,7 @@
 #pragma once
 
+#include <acul/enum.hpp>
+#include <amal/rect.hpp>
 #include "umbf.hpp"
 
 namespace umbf
@@ -33,7 +35,7 @@ namespace umbf
          * @throws acul::runtime_error if the image formats of the source and destination images do not match
          *         or if the specified rectangular area is out of the bounds of the destination image.
          */
-        APPLIB_API void copy_pixels_to_area(const Image2D &src, Image2D &dst, const Atlas::Rect &rect);
+        APPLIB_API void copy_pixels_to_area(const Image2D &src, Image2D &dst, const amal::irect &rect);
 
         /**
          * @brief Converts a raw pixel buffer from one format/channel layout to another.
@@ -73,5 +75,141 @@ namespace umbf
             using namespace umbf::mesh;
             APPLIB_API void fill_vertex_groups(const Model &model, acul::vector<VertexGroup> &groups);
         } // namespace mesh
+
+        struct SkylineHeuristic
+        {
+            enum enum_type : u8
+            {
+                bottom_left,
+                min_waste_fit
+            };
+        };
+
+        namespace detail
+        {
+            struct SkylineNode
+            {
+                i32 x = 0;
+                i32 y = 0;
+                i32 width = 0;
+            };
+        } // namespace detail
+
+        class SkylinePacker
+        {
+        public:
+            SkylinePacker() = default;
+            APPLIB_API explicit SkylinePacker(const amal::ivec2 &atlas_size, i32 padding = 0);
+
+            APPLIB_API void reset(const amal::ivec2 &atlas_size, i32 padding = 0);
+            APPLIB_API bool add_locked(const amal::irect &rect);
+            APPLIB_API bool pack_rect(amal::irect &rect,
+                                      SkylineHeuristic::enum_type heuristic = SkylineHeuristic::bottom_left);
+            APPLIB_API bool pack_rects(acul::vector<amal::irect> &rects, u32 locked_count,
+                                       SkylineHeuristic::enum_type heuristic = SkylineHeuristic::bottom_left);
+
+        private:
+            amal::ivec2 _atlas_size{0, 0};
+            i32 _padding = 0;
+            acul::vector<detail::SkylineNode> _skyline_nodes;
+            acul::vector<amal::irect> _waste_rects;
+            acul::vector<amal::irect> _used_rects;
+        };
+
+        APPLIB_API bool pack_skyline(const amal::ivec2 &atlas_size, u32 locked_count, acul::vector<amal::irect> &rects,
+                                     SkylineHeuristic::enum_type heuristic = SkylineHeuristic::bottom_left,
+                                     i32 padding = 0);
+
+        struct MaxRectsHeuristic
+        {
+            enum enum_type : u8
+            {
+                best_short_side_fit,
+                best_long_side_fit,
+                best_area_fit,
+                bottom_left_rule,
+                contact_point_rule
+            };
+        };
+
+        struct MaxRectsTransformBits
+        {
+            enum enum_type : u8
+            {
+                none = 0x0,
+                rotate = 0x1,
+                scale = 0x2
+            };
+            using flag_bitmask = std::true_type;
+        };
+        using MaxRectsTransform = acul::flags<MaxRectsTransformBits>;
+
+        struct MaxRectsPackResult
+        {
+            bool packed = false;
+            f32 scale = 1.0f;
+            u32 packed_count = 0;
+            u64 unpacked_area = 0;
+        };
+
+        namespace detail
+        {
+            struct MaxRectsCandidate
+            {
+                bool valid = false;
+                bool flipped = false;
+                amal::irect rect{};
+                i32 score_primary = 0;
+                i32 score_secondary = 0;
+            };
+        } // namespace detail
+
+        class MaxRectsPacker
+        {
+        public:
+            MaxRectsPacker() = default;
+            APPLIB_API explicit MaxRectsPacker(const amal::ivec2 &atlas_size, i32 padding = 0);
+
+            APPLIB_API void reset(const amal::ivec2 &atlas_size, i32 padding = 0);
+            APPLIB_API bool add_locked(const amal::irect &rect);
+            APPLIB_API bool pack_rect(amal::irect &rect, MaxRectsTransform *transform = nullptr,
+                                      MaxRectsHeuristic::enum_type heuristic =
+                                          MaxRectsHeuristic::best_short_side_fit,
+                                      MaxRectsTransform allowed_transforms = MaxRectsTransformBits::none);
+            APPLIB_API MaxRectsPackResult
+            pack_rects(acul::vector<amal::irect> &rects, u32 locked_count,
+                       acul::vector<MaxRectsTransform> *transforms = nullptr,
+                       MaxRectsHeuristic::enum_type heuristic = MaxRectsHeuristic::best_short_side_fit,
+                       MaxRectsTransform allowed_transforms = MaxRectsTransformBits::none);
+
+        private:
+            amal::ivec2 _atlas_size{0, 0};
+            i32 _padding = 0;
+            acul::vector<amal::irect> _free_rects;
+            acul::vector<amal::irect> _used_rects;
+        };
+
+        APPLIB_API MaxRectsPackResult
+        pack_max_rects(const amal::ivec2 &atlas_size, u32 locked_count, acul::vector<amal::irect> &rects,
+                       acul::vector<MaxRectsTransform> *transforms = nullptr,
+                       MaxRectsHeuristic::enum_type heuristic = MaxRectsHeuristic::best_short_side_fit,
+                       MaxRectsTransform allowed_transforms = MaxRectsTransformBits::none, i32 padding = 0);
+
+        inline MaxRectsPackResult
+        pack_max_rects(const amal::ivec2 &atlas_size, u32 locked_count, acul::vector<amal::irect> &rects,
+                       MaxRectsHeuristic::enum_type heuristic = MaxRectsHeuristic::best_short_side_fit,
+                       MaxRectsTransform allowed_transforms = MaxRectsTransformBits::none, i32 padding = 0)
+        {
+            return pack_max_rects(atlas_size, locked_count, rects, nullptr, heuristic, allowed_transforms, padding);
+        }
+
+        inline MaxRectsPackResult
+        pack_max_rects(const amal::ivec2 &atlas_size, u32 locked_count, acul::vector<amal::irect> &rects,
+                       acul::vector<MaxRectsTransform> &transforms,
+                       MaxRectsHeuristic::enum_type heuristic = MaxRectsHeuristic::best_short_side_fit,
+                       MaxRectsTransform allowed_transforms = MaxRectsTransformBits::none, i32 padding = 0)
+        {
+            return pack_max_rects(atlas_size, locked_count, rects, &transforms, heuristic, allowed_transforms, padding);
+        }
     } // namespace utils
 } // namespace umbf

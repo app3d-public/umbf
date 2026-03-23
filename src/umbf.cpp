@@ -1,4 +1,3 @@
-#include <acul/functional/unique_function.hpp>
 #include <acul/io/fs/file.hpp>
 #include <acul/io/fs/path.hpp>
 #include <acul/log.hpp>
@@ -143,24 +142,6 @@ namespace umbf
         return dst ? acul::make_op_success() : acul::make_op_error(ACUL_OP_ERROR_GENERIC);
     }
 
-    bool pack_atlas(size_t max_size, int discard_step, rectpack2D::flipping_option flip, acul::vector<Atlas::Rect> &dst)
-    {
-        rectpack2D::callback_result pack_result{rectpack2D::callback_result::CONTINUE_PACKING};
-        acul::unique_function<rectpack2D::callback_result(Atlas::Rect &)> report_successfull = [](Atlas::Rect &) {
-            return rectpack2D::callback_result::CONTINUE_PACKING;
-        };
-        acul::unique_function<rectpack2D::callback_result(Atlas::Rect &)> report_unsuccessfull =
-            [&pack_result, max_size](Atlas::Rect &) {
-                pack_result = rectpack2D::callback_result::ABORT_PACKING;
-                UMBF_LOG_INFO("Failed to pack atlas. Max size: %zu", max_size);
-                return rectpack2D::callback_result::ABORT_PACKING;
-            };
-
-        rectpack2D::find_best_packing<Atlas::Spaces>(
-            dst, rectpack2D::make_finder_input(max_size, discard_step, report_successfull, report_unsuccessfull, flip));
-        return pack_result != rectpack2D::callback_result::ABORT_PACKING;
-    }
-
     void fill_atlas_pixels(const acul::shared_ptr<Image2D> &image, const acul::shared_ptr<Atlas> &atlas,
                            const acul::vector<acul::shared_ptr<Image2D>> &src)
     {
@@ -170,13 +151,7 @@ namespace umbf
         for (size_t i = 0; i < atlas->pack_data.size(); i++)
         {
             if (!src[i]->pixels) throw acul::runtime_error("Pixels cannot be null");
-
-            auto rect = atlas->pack_data[i];
-            rect.x += atlas->padding;
-            rect.y += atlas->padding;
-            rect.w -= 2 * atlas->padding;
-            rect.h -= 2 * atlas->padding;
-            utils::copy_pixels_to_area(*(src[i]), *image, rect);
+            utils::copy_pixels_to_area(*(src[i]), *image, atlas->pack_data[i]);
         }
     }
 

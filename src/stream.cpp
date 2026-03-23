@@ -47,22 +47,23 @@ namespace umbf
         void write_image_atlas(acul::bin_stream &stream, Block *block)
         {
             auto atlas = static_cast<Atlas *>(block);
-            stream.write(atlas->discard_step).write(atlas->padding).write(static_cast<u16>(atlas->pack_data.size()));
-            for (auto &rect : atlas->pack_data) stream.write(rect.w).write(rect.h).write(rect.x).write(rect.y);
+            stream.write(atlas->padding).write(static_cast<u16>(atlas->pack_data.size()));
+            for (auto &rect : atlas->pack_data)
+                stream.write(rect.size.x).write(rect.size.y).write(rect.offset.x).write(rect.offset.y);
         }
 
         Block *read_image_atlas(acul::bin_stream &stream)
         {
             auto *atlas = acul::alloc<Atlas>();
             u16 pack_data_size;
-            stream.read(atlas->discard_step).read(atlas->padding).read(pack_data_size);
+            stream.read(atlas->padding).read(pack_data_size);
             atlas->pack_data.resize(pack_data_size);
             for (size_t i = 0; i < pack_data_size; i++)
             {
-                stream.read(atlas->pack_data[i].w)
-                    .read(atlas->pack_data[i].h)
-                    .read(atlas->pack_data[i].x)
-                    .read(atlas->pack_data[i].y);
+                stream.read(atlas->pack_data[i].size.x)
+                    .read(atlas->pack_data[i].size.y)
+                    .read(atlas->pack_data[i].offset.x)
+                    .read(atlas->pack_data[i].offset.y);
             }
             return atlas;
         }
