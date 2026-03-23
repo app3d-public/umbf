@@ -49,22 +49,16 @@ namespace umbf
 
         // A template function to convert the bit depth of an image from one type to another
         template <typename S, typename T>
-        void *convert_image_channel_bits(void *source, u64 size, int src_channels, int dst_channels)
+        void *convert_image_channel_bits(const void *source, u64 size, int src_channels, int dst_channels)
         {
             assert(source);
-            auto src = reinterpret_cast<S *>(source);
+            auto src = reinterpret_cast<const S *>(source);
             const u64 pixel_count = size / sizeof(S) / src_channels;
             const u64 total_count = pixel_count * dst_channels;
 
             T *buffer = (T *)acul::mem_allocator<std::byte>::allocate(total_count * sizeof(T));
-            f64 max_value;
-
-            if constexpr (std::is_floating_point<S>::value)
-                max_value = 1.0f;
-            else
-                max_value = static_cast<f64>(std::numeric_limits<T>::max());
             oneapi::tbb::parallel_for(
-                oneapi::tbb::blocked_range<size_t>(0, size / src_channels),
+                oneapi::tbb::blocked_range<size_t>(0, static_cast<size_t>(pixel_count)),
                 [&](const oneapi::tbb::blocked_range<size_t> &r) {
                     for (size_t pixel = r.begin(); pixel < r.end(); ++pixel)
                     {
@@ -80,7 +74,12 @@ namespace umbf
                                     if constexpr (std::is_same_v<T, f16> || std::is_floating_point<T>::value)
                                         buffer[dst_index + ch] = static_cast<T>(src[src_index + ch]);
                                     else
-                                        buffer[dst_index + ch] = static_cast<T>(src[src_index + ch] * max_value);
+                                    {
+                                        const f64 value = static_cast<f64>(src[src_index + ch]);
+                                        const f64 clamped = value < 0.0 ? 0.0 : (value > 1.0 ? 1.0 : value);
+                                        buffer[dst_index + ch] =
+                                            static_cast<T>(clamped * static_cast<f64>(std::numeric_limits<T>::max()));
+                                    }
                                 }
                                 else
                                 {
@@ -91,11 +90,16 @@ namespace umbf
                                         buffer[dst_index + ch] =
                                             static_cast<T>((static_cast<f32>(src[src_index + ch]) /
                                                             static_cast<f32>(std::numeric_limits<S>::max())) *
-                                                           max_value);
+                                                           static_cast<f64>(std::numeric_limits<T>::max()));
                                 }
                             }
                             else
-                                buffer[dst_index + ch] = static_cast<T>(max_value);
+                            {
+                                if constexpr (std::is_same_v<T, f16> || std::is_floating_point<T>::value)
+                                    buffer[dst_index + ch] = static_cast<T>(1.0f);
+                                else
+                                    buffer[dst_index + ch] = std::numeric_limits<T>::max();
+                            }
                         }
                     }
                 });
@@ -105,7 +109,7 @@ namespace umbf
 
         // Converts the source image to a specified format and channel depth.
         template <typename T>
-        void *convert_from_format(const ImageFormat &src_format, void *source, u64 size, int src_channels,
+        void *convert_from_format(const ImageFormat &src_format, const void *source, u64 size, int src_channels,
                                   int dst_channels)
         {
             switch (src_format.type)
@@ -136,34 +140,43 @@ namespace umbf
             return nullptr;
         }
 
-        void *convert_image(const Image2D &image, ImageFormat format, int dst_channels)
+        void *convert_buffer(const void *source, size_t source_size, const ImageFormat &src_format, int src_channels,
+                             const ImageFormat &dst_format, int dst_channels)
         {
-            const int src_channels = static_cast<int>(image.channels.size());
+            if (!source || source_size == 0 || src_channels <= 0 || dst_channels <= 0) return nullptr;
+            const size_t src_stride = static_cast<size_t>(src_channels) * src_format.bytes_per_channel;
+            if (src_stride == 0 || source_size % src_stride != 0) return nullptr;
 
-            switch (format.type)
+            if (src_format == dst_format && src_channels == dst_channels)
+            {
+                std::byte *copy = acul::mem_allocator<std::byte>::allocate(source_size);
+                memcpy(copy, source, source_size);
+                return copy;
+            }
+
+            switch (dst_format.type)
             {
                 case ImageFormat::Type::uint:
-                    switch (format.bytes_per_channel)
+                    switch (dst_format.bytes_per_channel)
                     {
                         case 1:
-                            return convert_from_format<u8>(image.format, image.pixels, image.size(), src_channels,
-                                                           dst_channels);
+                            return convert_from_format<u8>(src_format, source, source_size, src_channels, dst_channels);
                         case 2:
-                            return convert_from_format<u16>(image.format, image.pixels, image.size(), src_channels,
+                            return convert_from_format<u16>(src_format, source, source_size, src_channels,
                                                             dst_channels);
                         case 4:
-                            return convert_from_format<u32>(image.format, image.pixels, image.size(), src_channels,
+                            return convert_from_format<u32>(src_format, source, source_size, src_channels,
                                                             dst_channels);
                     }
                     break;
                 case ImageFormat::Type::sfloat:
-                    switch (format.bytes_per_channel)
+                    switch (dst_format.bytes_per_channel)
                     {
                         case 2:
-                            return convert_from_format<f16>(image.format, image.pixels, image.size(), src_channels,
+                            return convert_from_format<f16>(src_format, source, source_size, src_channels,
                                                             dst_channels);
                         case 4:
-                            return convert_from_format<f32>(image.format, image.pixels, image.size(), src_channels,
+                            return convert_from_format<f32>(src_format, source, source_size, src_channels,
                                                             dst_channels);
                     }
                     break;

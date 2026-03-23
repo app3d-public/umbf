@@ -36,6 +36,20 @@ namespace umbf
         APPLIB_API void copy_pixels_to_area(const Image2D &src, Image2D &dst, const Atlas::Rect &rect);
 
         /**
+         * @brief Converts a raw pixel buffer from one format/channel layout to another.
+         *
+         * @param source Pointer to source pixels.
+         * @param source_size Source buffer size in bytes.
+         * @param src_format Source channel format.
+         * @param src_channels Source channel count.
+         * @param dst_format Destination channel format.
+         * @param dst_channels Destination channel count.
+         * @return Newly allocated converted buffer or nullptr on failure.
+         */
+        APPLIB_API void *convert_buffer(const void *source, size_t source_size, const ImageFormat &src_format,
+                                        int src_channels, const ImageFormat &dst_format, int dst_channels);
+
+        /**
          * @brief Converts the provided image to a specified format and channel configuration.
          *
          * @param image Reference to the image structure containing image data and metadata.
@@ -44,7 +58,11 @@ namespace umbf
          * @return  A new buffer is dynamically allocated for the converted image data based on the specified
          * destination format and channel configuration.
          */
-        APPLIB_API void *convert_image(const Image2D &image, ImageFormat format, int channels);
+        inline void *convert_image(const Image2D &image, ImageFormat format, int channels)
+        {
+            const int src_channels = static_cast<int>(image.channels.size());
+            return convert_buffer(image.pixels, image.size(), image.format, src_channels, format, channels);
+        }
 
         APPLIB_API void filter_mat_assignments(const acul::vector<acul::shared_ptr<MaterialRange>> &assignes,
                                                size_t face_count, u64 default_id,
