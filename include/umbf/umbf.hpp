@@ -6,9 +6,8 @@
 #include <acul/memory/smart_ptr.hpp>
 #include <acul/op_result.hpp>
 #include <acul/string/utils.hpp>
-#include <amal/rect.hpp>
 #include <amal/integration/acul/bin_stream.hpp>
-
+#include <amal/rect.hpp>
 
 #define UMBF_MAGIC     0xCA9FB393
 #define UMBF_VENDOR_ID 0xBC037D
@@ -41,8 +40,9 @@ namespace umbf
             u32 spec_version;
             bool compressed;
         } header;
-        // Array of blocks, where the first block defines the asset type and the rest are metadata.
-        acul::vector<acul::shared_ptr<Block>> blocks;
+
+        using Payload = acul::vector<acul::shared_ptr<Block>>;
+        Payload blocks;
         u32 checksum; //< Checksum of the asset for integrity validation.
 
         /**
@@ -98,7 +98,8 @@ namespace umbf
                 material = 0x78DB,
                 target = 0x613E,
                 library = 0x1A2C,
-                raw = 0x4D4D
+                raw = 0x4D4D,
+                mapping = 0xBC55
             };
         } // namespace format
 
@@ -110,10 +111,11 @@ namespace umbf
             material = 0xA8D0C51E,
             scene = 0xB7A3EE80,
             mesh = 0xF224B521,
-            material_range = 0xC441E54D, // Material Range Assignments
+            material_range = 0xC441E54D,
             material_info = 0x6112A229,
             target = 0x0491F4E9,
-            library = 0x8D7824FA
+            library = 0x8D7824FA,
+            mapping = 0x3AC46A57
         };
     } // namespace sign_block
 
@@ -182,7 +184,7 @@ namespace umbf
     struct Atlas : Block
     {
         acul::vector<amal::irect> pack_data; //< Data about the placement of images within the atlas.
-        i16 padding;                  //< Padding between images in the atlas.
+        i16 padding;                         //< Padding between images in the atlas.
 
         /**
          * @brief Returns the signature of the atlas block.
@@ -425,6 +427,7 @@ namespace umbf
          * @return File search result
          */
         Node *get_node(const acul::path &path);
+        const Node *get_node(const acul::path &path) const;
     };
 
     // Meta block reserved for common external resourcees
@@ -439,6 +442,26 @@ namespace umbf
 
         ~RawBlock() { acul::release(data); }
     };
+
+    struct Mapping : public Block
+    {
+        u64 offset;
+        u64 size;
+
+        virtual u32 signature() const { return sign_block::mapping; }
+    };
+
+    struct LibraryMapData
+    {
+        FILE *fd = nullptr;
+        acul::shared_ptr<Library> library;
+        u64 payload_offset = 0;
+        u64 payload_size = 0;
+    };
+
+    APPLIB_API acul::op_result load_library_mapped(const acul::path &path, LibraryMapData &mapping);
+    APPLIB_API const Library::Node *get_library_mapped_node(const LibraryMapData &mapping, const acul::path &path,
+                                                            u64 &offset, u64 &size);
 
     /**
      * Class responsible for managing asset libraries.
@@ -561,6 +584,11 @@ namespace umbf
         APPLIB_API void write_raw_block(acul::bin_stream &stream, Block *block);
 
         inline Stream raw_block = {read_raw_block, write_raw_block};
+
+        APPLIB_API Block* read_mapping_block(acul::bin_stream &stream);
+        APPLIB_API void write_mapping_block(acul::bin_stream &stream, Block *block);
+
+        inline Stream mapping_block = {read_mapping_block, write_mapping_block};
     } // namespace streams
 } // namespace umbf
 

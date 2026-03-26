@@ -61,6 +61,7 @@ In particular, a Target block stores the checksum of the resource it references,
 | 0x613E    | target      | Target definition   |
 | 0x1A2C    | library     | Library of assets   |
 | 0x4D4D    | raw         | Raw binary data     |
+| 0xBC55    | mapping     | File mapping        |
 
 ### Block Type Signatures (32-bit)
 
@@ -76,6 +77,7 @@ In particular, a Target block stores the checksum of the resource it references,
 | 0x6112A229 | material_info  | Material metadata          |
 | 0x0491F4E9 | target         | Target data                |
 | 0x8D7824FA | library        | Asset library              |
+| 0x3AC46A57 | mapping        | File mapping               |
 
 ## Extension Name Convention
 

@@ -240,5 +240,18 @@ namespace umbf
             auto *raw = static_cast<RawBlock *>(content);
             stream.write(raw->data_size).write(raw->data, raw->data_size);
         }
+
+        Block *read_mapping_block(acul::bin_stream &stream)
+        {
+            auto *block = acul::alloc<Mapping>();
+            stream.read(block->offset).read(block->size);
+            return block;
+        }
+
+        void write_mapping_block(acul::bin_stream &stream, Block *content)
+        {
+            auto *mapping = static_cast<Mapping *>(content);
+            stream.write(mapping->offset).write(mapping->size);
+        }
     } // namespace streams
 } // namespace umbf

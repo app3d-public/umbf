@@ -85,7 +85,7 @@ namespace umbf
         }
     }
 
-    bool load_file(acul::bin_stream &source, acul::bin_stream &dst, File::Header &header)
+    static bool read_file_header(acul::bin_stream &source, File::Header &header)
     {
         u32 sign_file_format;
         source.read(sign_file_format);
@@ -97,6 +97,12 @@ namespace umbf
         File::Header::Pack pack;
         source.read(pack);
         unpack_header(pack, header);
+        return true;
+    }
+
+    bool load_file(acul::bin_stream &source, acul::bin_stream &dst, File::Header &header)
+    {
+        if (!read_file_header(source, header)) return false;
         if (header.compressed)
         {
             acul::vector<char> decompressed;
@@ -142,6 +148,157 @@ namespace umbf
         return dst ? acul::make_op_success() : acul::make_op_error(ACUL_OP_ERROR_GENERIC);
     }
 
+    static bool read_bytes(FILE *fd, void *dst, size_t size)
+    {
+        return size == 0 || (fd && fread(dst, 1, size, fd) == size);
+    }
+
+    APPLIB_API acul::op_result load_library_mapped(const acul::path &path, LibraryMapData &mapping)
+    {
+        try
+        {
+            mapping.library.reset();
+            mapping.payload_offset = 0;
+            mapping.payload_size = 0;
+            size_t file_size = acul::fs::read_binary_fd(path, mapping.fd);
+            if (file_size == 0) return acul::make_op_error(ACUL_OP_READ_ERROR);
+            File::Header header;
+            size_t header_section_size = sizeof(File::Header::Pack) + sizeof(u32);
+            acul::vector<char> source_bytes(header_section_size);
+            if (!read_bytes(mapping.fd, source_bytes.data(), header_section_size))
+            {
+                fclose(mapping.fd);
+                mapping.fd = nullptr;
+                return acul::make_op_error(ACUL_OP_READ_ERROR);
+            }
+            acul::bin_stream source_stream(std::move(source_bytes));
+            if (!read_file_header(source_stream, header))
+            {
+                fclose(mapping.fd);
+                mapping.fd = nullptr;
+                return acul::make_op_error(ACUL_OP_ERROR_GENERIC);
+            }
+            if (header.compressed)
+            {
+                UMBF_LOG_ERROR("Mapped library must contains uncomressed payload");
+                fclose(mapping.fd);
+                mapping.fd = nullptr;
+                return acul::make_op_error(ACUL_OP_ERROR_GENERIC);
+            }
+            if (header.vendor_sign != UMBF_VENDOR_ID || header.type_sign != sign_block::format::library)
+            {
+                UMBF_LOG_ERROR("Invalid asset type");
+                fclose(mapping.fd);
+                mapping.fd = nullptr;
+                return acul::make_op_error(ACUL_OP_ERROR_GENERIC);
+            }
+
+            while (true)
+            {
+                u64 block_size = 0;
+                if (!read_bytes(mapping.fd, &block_size, sizeof(block_size)))
+                {
+                    fclose(mapping.fd);
+                    mapping.fd = nullptr;
+                    return acul::make_op_error(ACUL_OP_READ_ERROR);
+                }
+
+                if (block_size == 0)
+                {
+                    const long payload_offset = ftell(mapping.fd);
+                    if (payload_offset < 0)
+                    {
+                        fclose(mapping.fd);
+                        mapping.fd = nullptr;
+                        return acul::make_op_error(ACUL_OP_READ_ERROR);
+                    }
+                    mapping.payload_offset = static_cast<u64>(payload_offset);
+                    mapping.payload_size = file_size >= mapping.payload_offset ? file_size - mapping.payload_offset : 0;
+                    break;
+                }
+
+                u32 signature = 0;
+                if (!read_bytes(mapping.fd, &signature, sizeof(signature)))
+                {
+                    fclose(mapping.fd);
+                    mapping.fd = nullptr;
+                    return acul::make_op_error(ACUL_OP_READ_ERROR);
+                }
+
+                acul::vector<char> block_bytes(block_size);
+                if (!read_bytes(mapping.fd, block_bytes.data(), block_size))
+                {
+                    fclose(mapping.fd);
+                    mapping.fd = nullptr;
+                    return acul::make_op_error(ACUL_OP_READ_ERROR);
+                }
+
+                const auto *meta_stream =
+                    umbf::streams::resolver ? umbf::streams::resolver->get_stream(signature) : nullptr;
+                if (!meta_stream) continue;
+
+                acul::bin_stream block_stream(std::move(block_bytes));
+                acul::shared_ptr<Block> block(meta_stream->read(block_stream));
+                if (!block) continue;
+
+                if (block->signature() == sign_block::library)
+                    mapping.library = acul::static_pointer_cast<Library>(block);
+            }
+
+            if (!mapping.library)
+            {
+                UMBF_LOG_ERROR("Mapped library block not found in the metadata");
+                fclose(mapping.fd);
+                mapping.fd = nullptr;
+                return acul::make_op_error(ACUL_OP_ERROR_GENERIC);
+            }
+        }
+        catch (std::exception &e)
+        {
+            UMBF_LOG_ERROR("%s", e.what());
+            if (mapping.fd) fclose(mapping.fd);
+            mapping.fd = nullptr;
+            return acul::make_op_error(ACUL_OP_ERROR_GENERIC);
+        }
+        return acul::make_op_success();
+    }
+
+    APPLIB_API const Library::Node *get_library_mapped_node(const LibraryMapData &mapping, const acul::path &path,
+                                                            u64 &offset, u64 &size)
+    {
+        offset = 0;
+        size = 0;
+        if (!mapping.library)
+        {
+            UMBF_LOG_ERROR("Mapped library is not loaded");
+            return nullptr;
+        }
+
+        const auto *node = mapping.library->get_node(path);
+        if (!node || node->is_folder)
+        {
+            UMBF_LOG_ERROR("Invalid node recived for mapping: %s", path.str().c_str());
+            return nullptr;
+        }
+
+        for (const auto &block : node->asset.blocks)
+        {
+            if (!block || block->signature() != sign_block::mapping) continue;
+            auto *range = static_cast<const Mapping *>(block.get());
+            if (range->offset > mapping.payload_size || range->size > mapping.payload_size - range->offset)
+            {
+                UMBF_LOG_ERROR("Mapped node is outside payload bounds: %s", path.str().c_str());
+                return nullptr;
+            }
+            offset = mapping.payload_offset + range->offset;
+            size = range->size;
+            return node;
+        }
+
+        UMBF_LOG_ERROR("Mapping block not found for node: %s", path.str().c_str());
+        return nullptr;
+    }
+
     void fill_atlas_pixels(const acul::shared_ptr<Image2D> &image, const acul::shared_ptr<Atlas> &atlas,
                            const acul::vector<acul::shared_ptr<Image2D>> &src)
     {
@@ -172,6 +329,11 @@ namespace umbf
             }
         }
         return current_node;
+    }
+
+    const Library::Node *Library::get_node(const acul::path &path) const
+    {
+        return const_cast<Library *>(this)->get_node(path);
     }
 
     void Registry::init(const acul::path &path)
