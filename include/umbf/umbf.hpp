@@ -11,6 +11,8 @@
 
 #define UMBF_MAGIC     0xCA9FB393
 #define UMBF_VENDOR_ID 0xBC037D
+#define UMBF_COMPRESSION_PAYLOAD_BIT 0x1
+#define UMBF_COMPRESSION_MAPPED_BIT  0x2
 
 namespace umbf
 {
@@ -36,9 +38,9 @@ namespace umbf
             struct Pack;
             u32 vendor_sign;
             u32 vendor_version;
-            u16 type_sign;
             u32 spec_version;
-            bool compressed;
+            u16 type_sign;
+            u8 flags;
         } header;
 
         using Payload = acul::vector<acul::shared_ptr<Block>>;
@@ -76,7 +78,7 @@ namespace umbf
     struct File::Header::Pack
     {
         u32 vendor_sign : 24;
-        u32 compressed : 8;
+        u32 flags : 8;
         u32 vendor_version : 24;
         u32 type_sign_low : 8;
         u32 type_sign_high : 8;
@@ -453,15 +455,18 @@ namespace umbf
 
     struct LibraryMapData
     {
-        FILE *fd = nullptr;
+        mutable FILE *fd = nullptr;
+        acul::path path;
         acul::shared_ptr<Library> library;
         u64 payload_offset = 0;
         u64 payload_size = 0;
+        bool compressed = true;
     };
 
     APPLIB_API acul::op_result load_library_mapped(const acul::path &path, LibraryMapData &mapping);
-    APPLIB_API const Library::Node *get_library_mapped_node(const LibraryMapData &mapping, const acul::path &path,
-                                                            u64 &offset, u64 &size);
+    APPLIB_API acul::op_result load_library_mapped_data(const LibraryMapData &mapping,
+                                                        const acul::shared_ptr<Mapping> &node_mapping,
+                                                        acul::vector<char> &dst);
 
     /**
      * Class responsible for managing asset libraries.
@@ -585,7 +590,7 @@ namespace umbf
 
         inline Stream raw_block = {read_raw_block, write_raw_block};
 
-        APPLIB_API Block* read_mapping_block(acul::bin_stream &stream);
+        APPLIB_API Block *read_mapping_block(acul::bin_stream &stream);
         APPLIB_API void write_mapping_block(acul::bin_stream &stream, Block *block);
 
         inline Stream mapping_block = {read_mapping_block, write_mapping_block};
