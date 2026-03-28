@@ -266,14 +266,14 @@ namespace umbf
             }
 
             u64 raw_block_size = 0;
-            if (fread(&raw_block_size, sizeof(raw_block_size), 1, mapping.fd) != 1 || raw_block_size == 0)
+            if (fread(&raw_block_size, sizeof(raw_block_size), 1, mapping.fd) != 1 || raw_block_size < sizeof(u64))
             {
                 close_library_map_fd(mapping);
                 return acul::make_op_error(ACUL_OP_READ_ERROR);
             }
 
-            mapping.payload_offset = static_cast<u64>(raw_block_offset) + sizeof(u64) + sizeof(u32);
-            mapping.payload_size = raw_block_size;
+            mapping.payload_offset = static_cast<u64>(raw_block_offset) + sizeof(u64) + sizeof(u32) + sizeof(u64);
+            mapping.payload_size = raw_block_size - sizeof(u64);
 
             if (mapping.payload_size == 0)
             {
@@ -305,7 +305,8 @@ namespace umbf
         if (acul::fs::fseek(mapping.fd, offset, SEEK_SET) != 0) return acul::make_op_error(ACUL_OP_READ_ERROR);
 
         acul::vector<char> src(static_cast<size_t>(node_mapping->size));
-        if (fread(src.data(), 1, src.size(), mapping.fd) != src.size()) return acul::make_op_error(ACUL_OP_READ_ERROR);
+        if (fread(src.data(), 1, src.size(), mapping.fd) != src.size())
+            return acul::make_op_error(ACUL_OP_READ_ERROR);
 
         if (mapping.compressed) return acul::fs::decompress(src.data(), src.size(), dst);
 
