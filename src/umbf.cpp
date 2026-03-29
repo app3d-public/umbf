@@ -21,6 +21,9 @@ struct LogContext
 
 namespace umbf
 {
+    static constexpr u64 g_mapped_block_prefix_size = sizeof(u64) + sizeof(u32);
+    static constexpr u64 g_raw_block_data_size_field = sizeof(u64);
+
     APPLIB_API void attach_logger(acul::log::log_service *log_service, acul::log::logger_base *logger) noexcept
     {
         g_log.log_service = log_service;
@@ -240,7 +243,7 @@ namespace umbf
                 return acul::make_op_error(ACUL_OP_READ_ERROR);
             }
 
-            acul::vector<char> library_buffer(sizeof(u64) + sizeof(u32) + library_block_size);
+            acul::vector<char> library_buffer(12 + library_block_size);
             if (fread(library_buffer.data(), 1, library_buffer.size(), mapping.fd) != library_buffer.size())
             {
                 close_library_map_fd(mapping);
@@ -272,8 +275,9 @@ namespace umbf
                 return acul::make_op_error(ACUL_OP_READ_ERROR);
             }
 
-            mapping.payload_offset = static_cast<u64>(raw_block_offset) + sizeof(u64) + sizeof(u32) + sizeof(u64);
-            mapping.payload_size = raw_block_size - sizeof(u64);
+            mapping.payload_offset =
+                static_cast<u64>(raw_block_offset) + g_mapped_block_prefix_size + g_raw_block_data_size_field;
+            mapping.payload_size = raw_block_size - g_raw_block_data_size_field;
 
             if (mapping.payload_size == 0)
             {
