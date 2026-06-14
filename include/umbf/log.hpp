@@ -1,8 +1,9 @@
 #pragma once
 
 #include <acul/log.hpp>
+#include <umbf/symbol_export.h>
 
 namespace umbf
 {
-    APPLIB_API void attach_logger(acul::log::log_service *log_service, acul::log::logger_base *logger) noexcept;
+    UMBF_EXPORT void attach_logger(acul::log::log_service *log_service, acul::log::logger_base *logger) noexcept;
 }

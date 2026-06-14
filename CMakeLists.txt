@@ -13,7 +13,8 @@ if(NOT DEFINED ACBT_LOADED)
     include(cmake/utils.cmake)
 endif()
 
-gen_version_file(${CMAKE_CURRENT_BINARY_DIR}/include/${PROJECT_NAME}/version.h)
+create_version_file()
+create_symbol_export_file()
 
 if(NOT TARGET acul)
     add_subdirectory(modules/acul)
@@ -25,9 +26,11 @@ endif()
 
 add_files(${PROJECT_NAME} RECURSE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 add_library(${PROJECT_NAME} SHARED ${UMBF_SRC})
-set_target_properties(${PROJECT_NAME} PROPERTIES CXX_VISIBILITY_PRESET hidden)
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    DEFINE_SYMBOL UMBF_BUILD
+    CXX_VISIBILITY_PRESET hidden
+)
 
-target_compile_definitions(${PROJECT_NAME} PRIVATE -DAPPLIB_BUILD)
 target_include_directories(${PROJECT_NAME} PUBLIC
     "${CMAKE_CURRENT_BINARY_DIR}/include/"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/"

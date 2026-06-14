@@ -8,9 +8,10 @@
 #include <acul/string/utils.hpp>
 #include <amal/integration/acul/bin_stream.hpp>
 #include <amal/rect.hpp>
+#include <umbf/symbol_export.h>
 
-#define UMBF_MAGIC     0xCA9FB393
-#define UMBF_VENDOR_ID 0xBC037D
+#define UMBF_MAGIC                   0xCA9FB393
+#define UMBF_VENDOR_ID               0xBC037D
 #define UMBF_COMPRESSION_PAYLOAD_BIT 0x1
 #define UMBF_COMPRESSION_MAPPED_BIT  0x2
 
@@ -52,7 +53,7 @@ namespace umbf
          * @param bytes The binary stream containing the asset data.
          * @return A shared pointer to the created asset.
          **/
-        static APPLIB_API acul::shared_ptr<File> read_from_bytes(acul::bin_stream &bytes);
+        static UMBF_EXPORT acul::shared_ptr<File> read_from_bytes(acul::bin_stream &bytes);
 
         /**
          * @brief Reads and creates an asset from a binary stream.
@@ -60,7 +61,7 @@ namespace umbf
          * @param dst The destination shared pointer to store the created asset.
          * @return The result of the operation.
          **/
-        static APPLIB_API acul::op_result read_from_disk(const acul::string &path, acul::shared_ptr<File> &dst);
+        static UMBF_EXPORT acul::op_result read_from_disk(const acul::string &path, acul::shared_ptr<File> &dst);
 
         /**
          * @brief Saves the asset to a file.
@@ -72,7 +73,7 @@ namespace umbf
          * @param compression The level of compression to apply (default is 5).
          * @return True if the asset was saved successfully, false otherwise.
          */
-        APPLIB_API bool save(const acul::string &path, int compression = 5);
+        UMBF_EXPORT bool save(const acul::string &path, int compression = 5);
     };
 
     struct File::Header::Pack
@@ -85,8 +86,8 @@ namespace umbf
         u32 spec_version : 24;
     };
 
-    APPLIB_API void pack_header(const File::Header &src, File::Header::Pack &dst);
-    APPLIB_API void unpack_header(const File::Header::Pack &src, File::Header &dst);
+    UMBF_EXPORT void pack_header(const File::Header &src, File::Header::Pack &dst);
+    UMBF_EXPORT void unpack_header(const File::Header::Pack &src, File::Header &dst);
 
     namespace sign_block
     {
@@ -203,8 +204,8 @@ namespace umbf
     /// @param image Image block
     /// @param atlas Atlas block
     /// @param src Source images
-    APPLIB_API void fill_atlas_pixels(const acul::shared_ptr<Image2D> &image, const acul::shared_ptr<Atlas> &atlas,
-                                      const acul::vector<acul::shared_ptr<Image2D>> &src);
+    UMBF_EXPORT void fill_atlas_pixels(const acul::shared_ptr<Image2D> &image, const acul::shared_ptr<Atlas> &atlas,
+                                       const acul::vector<acul::shared_ptr<Image2D>> &src);
 
     // Represents a node of material properties.
     struct MaterialNode
@@ -406,7 +407,7 @@ namespace umbf
 
     // The Library class serves as a storage for other assets. These assets can either be embedded or act as
     // targets.
-    struct APPLIB_API Library final : Block
+    struct Library final : Block
     {
         // Represents a node in the file structure of the asset library.
         struct Node
@@ -428,8 +429,8 @@ namespace umbf
          * @param path Filesystem path to query for assets.
          * @return File search result
          */
-        Node *get_node(const acul::path &path);
-        const Node *get_node(const acul::path &path) const;
+        UMBF_EXPORT Node *get_node(const acul::path &path);
+        UMBF_EXPORT const Node *get_node(const acul::path &path) const;
     };
 
     // Meta block reserved for common external resourcees
@@ -463,10 +464,10 @@ namespace umbf
         bool compressed = true;
     };
 
-    APPLIB_API acul::op_result load_library_mapped(const acul::path &path, LibraryMapData &mapping);
-    APPLIB_API acul::op_result load_library_mapped_data(const LibraryMapData &mapping,
-                                                        const acul::shared_ptr<Mapping> &node_mapping,
-                                                        acul::vector<char> &dst);
+    UMBF_EXPORT acul::op_result load_library_mapped(const acul::path &path, LibraryMapData &mapping);
+    UMBF_EXPORT acul::op_result load_library_mapped_data(const LibraryMapData &mapping,
+                                                         const acul::shared_ptr<Mapping> &node_mapping,
+                                                         acul::vector<char> &dst);
 
     /**
      * Class responsible for managing asset libraries.
@@ -476,7 +477,7 @@ namespace umbf
      * traversal of the libraries and ensures streamlined integration with the underlying system through
      * its initialization method.
      */
-    class APPLIB_API Registry
+    class Registry
     {
     public:
         using iterator = acul::hashmap<acul::string, acul::shared_ptr<Library>>::iterator;
@@ -508,7 +509,7 @@ namespace umbf
         const_iterator end() const { return _libraries.end(); }
         const_iterator cend() const { return _libraries.cend(); }
 
-        void init(const acul::path &path);
+        UMBF_EXPORT void init(const acul::path &path);
 
     private:
         acul::hashmap<acul::string, acul::shared_ptr<Library>> _libraries;
@@ -540,70 +541,28 @@ namespace umbf
             }
         };
 
-        extern APPLIB_API Resolver *resolver;
-
-        APPLIB_API void write_image(acul::bin_stream &stream, Block *block);
-        APPLIB_API Block *read_image(acul::bin_stream &stream);
-        inline Stream image = {read_image, write_image};
-
-        APPLIB_API Block *read_image_atlas(acul::bin_stream &stream);
-        APPLIB_API void write_image_atlas(acul::bin_stream &stream, Block *block);
-        inline Stream image_atlas = {read_image_atlas, write_image_atlas};
-
-        APPLIB_API Block *read_material(acul::bin_stream &stream);
-        APPLIB_API void write_material(acul::bin_stream &stream, Block *block);
-        inline Stream material = {read_material, write_material};
-
-        APPLIB_API Block *read_material_info(acul::bin_stream &stream);
-        inline void write_material_info(acul::bin_stream &stream, Block *block)
-        {
-            MaterialInfo *material = static_cast<MaterialInfo *>(block);
-            stream.write(material->id)
-                .write(material->name)
-                .write(static_cast<u32>(material->assignments.size()))
-                .write(material->assignments.data(), material->assignments.size());
-        }
-        inline Stream material_info = {read_material_info, write_material_info};
-
-        APPLIB_API Block *read_material_range(acul::bin_stream &stream);
-        APPLIB_API void write_material_range(acul::bin_stream &stream, Block *block);
-        inline Stream material_range = {read_material_range, write_material_range};
-
-        APPLIB_API Block *read_scene(acul::bin_stream &stream);
-        APPLIB_API void write_scene(acul::bin_stream &stream, Block *block);
-        inline Stream scene = {read_scene, write_scene};
-
-        APPLIB_API Block *read_mesh(acul::bin_stream &stream);
-        APPLIB_API void write_mesh(acul::bin_stream &stream, Block *block);
-        inline Stream mesh = {read_mesh, write_mesh};
-
-        APPLIB_API Block *read_target(acul::bin_stream &stream);
-        APPLIB_API void write_target(acul::bin_stream &stream, Block *block);
-        inline Stream target = {read_target, write_target};
-
-        APPLIB_API Block *read_library(acul::bin_stream &stream);
-        APPLIB_API void write_library(acul::bin_stream &stream, Block *block);
-        inline Stream library = {read_library, write_library};
-
-        APPLIB_API Block *read_raw_block(acul::bin_stream &stream);
-        APPLIB_API void write_raw_block(acul::bin_stream &stream, Block *block);
-
-        inline Stream raw_block = {read_raw_block, write_raw_block};
-
-        APPLIB_API Block *read_mapping_block(acul::bin_stream &stream);
-        APPLIB_API void write_mapping_block(acul::bin_stream &stream, Block *block);
-
-        inline Stream mapping_block = {read_mapping_block, write_mapping_block};
+        extern UMBF_EXPORT Resolver *resolver;
+        extern UMBF_EXPORT const Stream image;
+        extern UMBF_EXPORT const Stream image_atlas;
+        extern UMBF_EXPORT const Stream material;
+        extern UMBF_EXPORT const Stream material_info;
+        extern UMBF_EXPORT const Stream material_range;
+        extern UMBF_EXPORT const Stream scene;
+        extern UMBF_EXPORT const Stream mesh;
+        extern UMBF_EXPORT const Stream target;
+        extern UMBF_EXPORT const Stream library;
+        extern UMBF_EXPORT const Stream raw_block;
+        extern UMBF_EXPORT const Stream mapping_block;
     } // namespace streams
 } // namespace umbf
 
 namespace acul
 {
     template <>
-    APPLIB_API bin_stream &bin_stream::write(const vector<acul::shared_ptr<umbf::Block>> &meta);
+    UMBF_EXPORT bin_stream &bin_stream::write(const vector<acul::shared_ptr<umbf::Block>> &meta);
 
     template <>
-    APPLIB_API bin_stream &bin_stream::read(vector<acul::shared_ptr<umbf::Block>> &meta);
+    UMBF_EXPORT bin_stream &bin_stream::read(vector<acul::shared_ptr<umbf::Block>> &meta);
 
     template <>
     inline bin_stream &bin_stream::write(const umbf::File::Header &header)

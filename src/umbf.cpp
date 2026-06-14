@@ -24,13 +24,13 @@ namespace umbf
     static constexpr u64 g_mapped_block_prefix_size = sizeof(u64) + sizeof(u32);
     static constexpr u64 g_raw_block_data_size_field = sizeof(u64);
 
-    APPLIB_API void attach_logger(acul::log::log_service *log_service, acul::log::logger_base *logger) noexcept
+    UMBF_EXPORT void attach_logger(acul::log::log_service *log_service, acul::log::logger_base *logger) noexcept
     {
         g_log.log_service = log_service;
         g_log.logger = logger;
     }
 
-    APPLIB_API void pack_header(const File::Header &src, File::Header::Pack &dst)
+    UMBF_EXPORT void pack_header(const File::Header &src, File::Header::Pack &dst)
     {
         dst.vendor_sign = src.vendor_sign & 0xFFFFFF;
         dst.flags = src.flags;
@@ -40,7 +40,7 @@ namespace umbf
         dst.spec_version = src.spec_version & 0xFFFFFF;
     }
 
-    APPLIB_API void unpack_header(const File::Header::Pack &src, File::Header &dst)
+    UMBF_EXPORT void unpack_header(const File::Header::Pack &src, File::Header &dst)
     {
         dst.vendor_sign = src.vendor_sign & 0xFFFFFF;
         dst.flags = static_cast<u8>(src.flags);
@@ -189,7 +189,7 @@ namespace umbf
         return block_size;
     }
 
-    APPLIB_API acul::op_result load_library_mapped(const acul::path &path, LibraryMapData &mapping)
+    UMBF_EXPORT acul::op_result load_library_mapped(const acul::path &path, LibraryMapData &mapping)
     {
         try
         {
@@ -295,7 +295,7 @@ namespace umbf
         return acul::make_op_success();
     }
 
-    APPLIB_API acul::op_result load_library_mapped_data(const LibraryMapData &mapping,
+    UMBF_EXPORT acul::op_result load_library_mapped_data(const LibraryMapData &mapping,
                                                         const acul::shared_ptr<Mapping> &node_mapping,
                                                         acul::vector<char> &dst)
     {

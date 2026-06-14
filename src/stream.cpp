@@ -182,6 +182,15 @@ namespace umbf
             return block;
         }
 
+        void write_material_info(acul::bin_stream &stream, Block *block)
+        {
+            MaterialInfo *material = static_cast<MaterialInfo *>(block);
+            stream.write(material->id)
+                .write(material->name)
+                .write(static_cast<u32>(material->assignments.size()))
+                .write(material->assignments.data(), material->assignments.size());
+        }
+
         void write_material_range(acul::bin_stream &stream, Block *block)
         {
             MaterialRange *assignment = static_cast<MaterialRange *>(block);
@@ -253,5 +262,17 @@ namespace umbf
             auto *mapping = static_cast<Mapping *>(content);
             stream.write(mapping->offset).write(mapping->size);
         }
+
+        UMBF_EXPORT const Stream image{read_image, write_image};
+        UMBF_EXPORT const Stream image_atlas{read_image_atlas, write_image_atlas};
+        UMBF_EXPORT const Stream material{read_material, write_material};
+        UMBF_EXPORT const Stream material_info{read_material_info, write_material_info};
+        UMBF_EXPORT const Stream material_range{read_material_range, write_material_range};
+        UMBF_EXPORT const Stream scene{read_scene, write_scene};
+        UMBF_EXPORT const Stream mesh{read_mesh, write_mesh};
+        UMBF_EXPORT const Stream target{read_target, write_target};
+        UMBF_EXPORT const Stream library{read_library, write_library};
+        UMBF_EXPORT const Stream raw_block{read_raw_block, write_raw_block};
+        UMBF_EXPORT const Stream mapping_block{read_mapping_block, write_mapping_block};
     } // namespace streams
 } // namespace umbf
