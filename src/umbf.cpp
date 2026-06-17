@@ -399,22 +399,83 @@ namespace umbf
 
 namespace acul
 {
+    static bin_stream &write_raw_meta_block(bin_stream &stream, umbf::Block *block)
+    {
+        assert(block);
+        auto *meta_stream = umbf::streams::resolver->get_stream(block->signature());
+        if (!meta_stream) return stream.write(0ULL);
+
+        bin_stream tmp{};
+        meta_stream->write(tmp, block);
+        u64 block_size = tmp.size();
+        return stream.write(block_size).write(block->signature()).write(tmp.data(), block_size);
+    }
+
     template <>
     bin_stream &bin_stream::write(const vector<acul::shared_ptr<umbf::Block>> &meta)
     {
         for (auto &block : meta)
         {
             assert(block);
-            auto *meta_stream = umbf::streams::resolver->get_stream(block->signature());
-            if (meta_stream)
-            {
-                bin_stream tmp{};
-                meta_stream->write(tmp, block.get());
-                u64 block_size = tmp.size();
-                write(block_size).write(block->signature()).write(tmp.data(), block_size);
-            }
+            write_raw_meta_block(*this, block.get());
         }
         return write(0ULL);
+    }
+
+    template <>
+    bin_stream &bin_stream::write(const vector<umbf::Block *> &meta)
+    {
+        for (auto *block : meta)
+        {
+            assert(block);
+            write_raw_meta_block(*this, block);
+        }
+        return write(0ULL);
+    }
+
+    template <>
+    bin_stream &bin_stream::write(umbf::Block *const &block)
+    {
+        return write_raw_meta_block(*this, block);
+    }
+
+    static bool read_next_raw_meta_block(bin_stream &stream, umbf::Block *&block)
+    {
+        u64 block_size = 0;
+        stream.read(block_size);
+        if (block_size == 0ULL) return false;
+
+        u32 signature;
+        stream.read(signature);
+        assert(umbf::streams::resolver);
+        auto *meta_stream = umbf::streams::resolver->get_stream(signature);
+        if (!meta_stream)
+        {
+            stream.shift(block_size);
+            block = nullptr;
+            return true;
+        }
+        block = meta_stream->read(stream);
+        return true;
+    }
+
+    template <>
+    bin_stream &bin_stream::read(umbf::Block *&block)
+    {
+        read_next_raw_meta_block(*this, block);
+        return *this;
+    }
+
+    template <>
+    bin_stream &bin_stream::read(vector<umbf::Block *> &meta)
+    {
+        while (_pos < _data.size())
+        {
+            umbf::Block *block = nullptr;
+            if (!read_next_raw_meta_block(*this, block)) break;
+            if (block) meta.push_back(block);
+        }
+        return *this;
     }
 
     template <>

@@ -275,4 +275,19 @@ namespace umbf
         UMBF_EXPORT const Stream raw_block{read_raw_block, write_raw_block};
         UMBF_EXPORT const Stream mapping_block{read_mapping_block, write_mapping_block};
     } // namespace streams
+
+    void insert_default_streams(streams::HashResolver &resolver)
+    {
+        resolver.streams[sign_block::image] = &streams::image;
+        resolver.streams[sign_block::image_atlas] = &streams::image_atlas;
+        resolver.streams[sign_block::mesh] = &streams::mesh;
+        resolver.streams[sign_block::material_range] = &streams::material_range;
+        resolver.streams[sign_block::material] = &streams::material;
+        resolver.streams[sign_block::material_info] = &streams::material_info;
+        resolver.streams[sign_block::scene] = &streams::scene;
+        resolver.streams[sign_block::target] = &streams::target;
+        resolver.streams[sign_block::library] = &streams::library;
+        resolver.streams[sign_block::raw] = &streams::raw_block;
+        resolver.streams[sign_block::mapping] = &streams::mapping_block;
+    }
 } // namespace umbf

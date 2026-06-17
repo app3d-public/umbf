@@ -554,6 +554,8 @@ namespace umbf
         extern UMBF_EXPORT const Stream raw_block;
         extern UMBF_EXPORT const Stream mapping_block;
     } // namespace streams
+
+    UMBF_EXPORT void insert_default_streams(streams::HashResolver &resolver);
 } // namespace umbf
 
 namespace acul
@@ -563,6 +565,18 @@ namespace acul
 
     template <>
     UMBF_EXPORT bin_stream &bin_stream::read(vector<acul::shared_ptr<umbf::Block>> &meta);
+
+    template <>
+    UMBF_EXPORT bin_stream &bin_stream::write(const vector<umbf::Block *> &meta);
+
+    template <>
+    UMBF_EXPORT bin_stream &bin_stream::read(vector<umbf::Block *> &meta);
+
+    template <>
+    UMBF_EXPORT bin_stream &bin_stream::write(umbf::Block *const &block);
+
+    template <>
+    UMBF_EXPORT bin_stream &bin_stream::read(umbf::Block *&block);
 
     template <>
     inline bin_stream &bin_stream::write(const umbf::File::Header &header)
