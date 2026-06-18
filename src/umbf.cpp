@@ -399,16 +399,17 @@ namespace umbf
 
 namespace acul
 {
-    static bin_stream &write_raw_meta_block(bin_stream &stream, umbf::Block *block)
+    static bool write_raw_meta_block(bin_stream &stream, umbf::Block *block)
     {
         assert(block);
         auto *meta_stream = umbf::streams::resolver->get_stream(block->signature());
-        if (!meta_stream) return stream.write(0ULL);
+        if (!meta_stream) return false;
 
         bin_stream tmp{};
         meta_stream->write(tmp, block);
         u64 block_size = tmp.size();
-        return stream.write(block_size).write(block->signature()).write(tmp.data(), block_size);
+        stream.write(block_size).write(block->signature()).write(tmp.data(), block_size);
+        return true;
     }
 
     template <>
@@ -436,7 +437,8 @@ namespace acul
     template <>
     bin_stream &bin_stream::write(umbf::Block *const &block)
     {
-        return write_raw_meta_block(*this, block);
+        write_raw_meta_block(*this, block);
+        return *this;
     }
 
     static bool read_next_raw_meta_block(bin_stream &stream, umbf::Block *&block)
