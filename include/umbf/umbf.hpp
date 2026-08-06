@@ -246,7 +246,11 @@ namespace umbf
      */
     struct Object
     {
-        u64 id;                                     //< Unique identifier for the object.
+        Object() = default;
+        Object(u64 id, const acul::string &name) : id(id), name(name) {}
+
+        u64 id = 0u;                                //< Unique identifier for the object.
+        u64 parent_id = 0u;                         //< Optional parent object identifier.
         acul::string name;                          //< The name of the object.
         acul::vector<acul::shared_ptr<Block>> meta; //< Metadata associated with the object.
     };

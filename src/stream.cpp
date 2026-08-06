@@ -86,7 +86,8 @@ namespace umbf
             auto scene = static_cast<Scene *>(block);
             // Objects
             stream.write(static_cast<u16>(scene->objects.size()));
-            for (const auto &object : scene->objects) stream.write(object.id).write(object.name).write(object.meta);
+            for (const auto &object : scene->objects)
+                stream.write(object.id).write(object.parent_id).write(object.name).write(object.meta);
 
             // Textures
             stream.write(scene->textures).write(scene->materials);
@@ -98,7 +99,8 @@ namespace umbf
             u16 object_count;
             stream.read(object_count);
             scene->objects.resize(object_count);
-            for (auto &object : scene->objects) stream.read(object.id).read(object.name).read(object.meta);
+            for (auto &object : scene->objects)
+                stream.read(object.id).read(object.parent_id).read(object.name).read(object.meta);
             stream.read(scene->textures).read(scene->materials);
             return scene;
         }
