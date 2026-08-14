@@ -137,9 +137,7 @@ namespace umbf
         u8 bytes_per_channel;
 
         constexpr bool operator==(const ImageFormat &rhs) const
-        {
-            return type == rhs.type && bytes_per_channel == rhs.bytes_per_channel;
-        }
+        { return type == rhs.type && bytes_per_channel == rhs.bytes_per_channel; }
 
 #if !(defined(__cpp_impl_three_way_comparison) && __cpp_impl_three_way_comparison >= 201907)
         constexpr bool operator!=(const ImageFormat &rhs) const { return !(*this == rhs); }
@@ -289,9 +287,7 @@ namespace umbf
             amal::vec3 normal{0.0f, 0.0f, 0.0f}; // Normal
 
             bool operator==(const Vertex &other) const
-            {
-                return pos == other.pos && uv == other.uv && normal == other.normal;
-            }
+            { return pos == other.pos && uv == other.uv && normal == other.normal; }
         };
 
         /**
@@ -337,6 +333,7 @@ namespace umbf
             amal::vec3 position = {0.0f, 0.0f, 0.0f};
             amal::vec3 rotation = {0.0f, 0.0f, 0.0f};
             amal::vec3 scale = {1.0f, 1.0f, 1.0f};
+            amal::vec3 center = {0.0f, 0.0f, 0.0f};
         };
 
         // Represents a block of mesh data.
@@ -592,9 +589,7 @@ namespace acul
 
     template <>
     inline bin_stream &bin_stream::write(const umbf::File &file)
-    {
-        return write(file.header).write(file.blocks);
-    }
+    { return write(file.header).write(file.blocks); }
 
     template <>
     inline bin_stream &bin_stream::read(umbf::File::Header &dst)
@@ -607,9 +602,7 @@ namespace acul
 
     template <>
     inline bin_stream &bin_stream::read(umbf::File &dst)
-    {
-        return read(dst.header).read(dst.blocks);
-    }
+    { return read(dst.header).read(dst.blocks); }
 
     template <>
     inline bin_stream &bin_stream::write(const vector<umbf::File> &assets)
