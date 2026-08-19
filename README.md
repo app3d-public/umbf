@@ -117,9 +117,9 @@ Scripts enumerated below are placed in the `scripts` directory.
 ### Bundled submodules
 The following dependencies are included as git submodules and must be checked out when cloning:
 
-- [acbt](https://github.com/app3d-public/acbt)
-- [acul](https://github.com/app3d-public/acul)
-- [amal](https://github.com/app3d-public/amal)
+- [acbt](https://repos.wusikijeronii.me/app3d/acbt)
+- [acul](https://repos.wusikijeronii.me/app3d/acul)
+- [amal](https://repos.wusikijeronii.me/app3d/amal)
 - [rectpack2D](https://github.com/TeamHypersomnia/rectpack2D)
 
 ## License

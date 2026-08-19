@@ -6,7 +6,7 @@
 #include <acul/memory/smart_ptr.hpp>
 #include <acul/op_result.hpp>
 #include <acul/string/utils.hpp>
-#include <amal/integration/acul/bin_stream.hpp>
+#include <amal/bin_stream.hpp>
 #include <amal/rect.hpp>
 #include <umbf/symbol_export.h>
 
