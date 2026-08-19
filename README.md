@@ -98,8 +98,8 @@ Scripts enumerated below are placed in the `scripts` directory.
 
 ### External repositories
 
-- [umbf-convert](https://github.com/app3d-public/umbf-convert)
-- [umbf-viewer](https://github.com/app3d-public/umbf-viewer)
+- [umbf-convert](https://repos.wusikijeronii.me/app3d/umbf-convert)
+- [umbf-viewer](https://repos.wusikijeronii.me/app3d/umbf-viewer)
 
 ## Building
 
