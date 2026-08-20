@@ -67,8 +67,7 @@ namespace umbf
 
             dst_stream.write(compressed.data(), compressed.size());
         }
-        else
-            dst_stream.write(src.data() + src.pos(), src.size() - src.pos());
+        else dst_stream.write(src.data() + src.pos(), src.size() - src.pos());
         file.checksum = acul::crc32(0, src.data(), src.size());
         return acul::fs::write_binary(path.str(), dst_stream.data(), dst_stream.size());
     }
@@ -117,8 +116,7 @@ namespace umbf
             }
             dst = acul::bin_stream(std::move(decompressed));
         }
-        else
-            dst = std::move(source);
+        else dst = std::move(source);
         return true;
     }
 
@@ -171,21 +169,48 @@ namespace umbf
 
     static u64 read_next_meta_block(acul::bin_stream &stream, acul::shared_ptr<Block> &block)
     {
+        if (stream.size() - stream.pos() < sizeof(u64)) return 0ULL;
         u64 block_size = 0;
         stream.read(block_size);
         if (block_size == 0ULL) return 0ULL;
 
+        if (stream.size() - stream.pos() < sizeof(u32)) return 0ULL;
         u32 signature;
         stream.read(signature);
+        if (block_size > stream.size() - stream.pos())
+        {
+            UMBF_LOG_ERROR("UMBF meta block 0x%08x exceeds the stream boundary", signature);
+            return 0ULL;
+        }
         assert(umbf::streams::resolver);
         auto *meta_stream = umbf::streams::resolver->get_stream(signature);
         if (meta_stream)
         {
-            block = acul::shared_ptr<Block>(meta_stream->read(stream));
-            if (!block) UMBF_LOG_WARN("Failed to read umbf meta block: 0x%08x", signature);
+            const u32 block_end = stream.pos() + static_cast<u32>(block_size);
+            const u32 previous_size = stream.size();
+            bool read_error = false;
+            stream.size(block_end);
+            try
+            {
+                block = acul::shared_ptr<Block>(meta_stream->read(stream));
+            }
+            catch (const std::exception &e)
+            {
+                block.reset();
+                read_error = true;
+                UMBF_LOG_WARN("Failed to read umbf meta block 0x%08x: %s", signature, e.what());
+            }
+            catch (...)
+            {
+                block.reset();
+                read_error = true;
+                UMBF_LOG_WARN("Failed to read umbf meta block 0x%08x", signature);
+            }
+            if (stream.size() != previous_size) stream.size(previous_size);
+            stream.pos(block_end);
+            if (!block && !read_error) UMBF_LOG_WARN("Failed to read umbf meta block: 0x%08x", signature);
         }
-        else
-            stream.shift(block_size);
+        else stream.shift(static_cast<u32>(block_size));
         return block_size;
     }
 
@@ -296,8 +321,8 @@ namespace umbf
     }
 
     UMBF_EXPORT acul::op_result load_library_mapped_data(const LibraryMapData &mapping,
-                                                        const acul::shared_ptr<Mapping> &node_mapping,
-                                                        acul::vector<char> &dst)
+                                                         const acul::shared_ptr<Mapping> &node_mapping,
+                                                         acul::vector<char> &dst)
     {
         if (!node_mapping) return acul::make_op_error(ACUL_OP_NULLPTR);
         if (!ensure_library_map_fd(mapping)) return acul::make_op_error(ACUL_OP_READ_ERROR);
@@ -309,8 +334,7 @@ namespace umbf
         if (acul::fs::fseek(mapping.fd, offset, SEEK_SET) != 0) return acul::make_op_error(ACUL_OP_READ_ERROR);
 
         acul::vector<char> src(static_cast<size_t>(node_mapping->size));
-        if (fread(src.data(), 1, src.size(), mapping.fd) != src.size())
-            return acul::make_op_error(ACUL_OP_READ_ERROR);
+        if (fread(src.data(), 1, src.size(), mapping.fd) != src.size()) return acul::make_op_error(ACUL_OP_READ_ERROR);
 
         if (mapping.compressed) return acul::fs::decompress(src.data(), src.size(), dst);
 
@@ -339,8 +363,7 @@ namespace umbf
             auto child_it = std::find_if(current_node->children.begin(), current_node->children.end(),
                                          [&it](const Node &node) { return node.name == it; });
 
-            if (child_it != current_node->children.end())
-                current_node = &(*child_it);
+            if (child_it != current_node->children.end()) current_node = &(*child_it);
             else
             {
                 UMBF_LOG_ERROR("Path not found in the umbf library: %s", path.str().c_str());
@@ -443,21 +466,48 @@ namespace acul
 
     static bool read_next_raw_meta_block(bin_stream &stream, umbf::Block *&block)
     {
+        block = nullptr;
+        if (stream.size() - stream.pos() < sizeof(u64)) return false;
         u64 block_size = 0;
         stream.read(block_size);
         if (block_size == 0ULL) return false;
 
+        if (stream.size() - stream.pos() < sizeof(u32)) return false;
         u32 signature;
         stream.read(signature);
+        if (block_size > stream.size() - stream.pos())
+        {
+            UMBF_LOG_ERROR("UMBF meta block 0x%08x exceeds the stream boundary", signature);
+            return false;
+        }
         assert(umbf::streams::resolver);
         auto *meta_stream = umbf::streams::resolver->get_stream(signature);
         if (!meta_stream)
         {
             stream.shift(block_size);
-            block = nullptr;
             return true;
         }
-        block = meta_stream->read(stream);
+        const u32 block_end = stream.pos() + static_cast<u32>(block_size);
+        const u32 previous_size = stream.size();
+        stream.size(block_end);
+        try
+        {
+            block = meta_stream->read(stream);
+        }
+        catch (const std::exception &e)
+        {
+            stream.size(previous_size);
+            block = nullptr;
+            UMBF_LOG_WARN("Failed to read umbf meta block 0x%08x: %s", signature, e.what());
+        }
+        catch (...)
+        {
+            stream.size(previous_size);
+            block = nullptr;
+            UMBF_LOG_WARN("Failed to read umbf meta block 0x%08x", signature);
+        }
+        if (stream.size() != previous_size) stream.size(previous_size);
+        stream.pos(block_end);
         return true;
     }
 
@@ -471,7 +521,7 @@ namespace acul
     template <>
     bin_stream &bin_stream::read(vector<umbf::Block *> &meta)
     {
-        while (_pos < _data.size())
+        while (_pos < size())
         {
             umbf::Block *block = nullptr;
             if (!read_next_raw_meta_block(*this, block)) break;
@@ -483,12 +533,12 @@ namespace acul
     template <>
     bin_stream &bin_stream::read(vector<acul::shared_ptr<umbf::Block>> &meta)
     {
-        while (_pos < _data.size())
+        while (_pos < size())
         {
             acul::shared_ptr<umbf::Block> block;
             u64 block_size = umbf::read_next_meta_block(*this, block);
             if (block_size == 0ULL) break;
-            meta.push_back(block);
+            if (block) meta.push_back(block);
         }
         return *this;
     }
