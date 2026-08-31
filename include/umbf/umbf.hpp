@@ -2,391 +2,101 @@
 
 #include <acul/hash/hashmap.hpp>
 #include <acul/hash/utils.hpp>
+#include <acul/io/fs/file.hpp>
 #include <acul/io/path.hpp>
+#include <acul/list.hpp>
 #include <acul/memory/smart_ptr.hpp>
 #include <acul/op_result.hpp>
 #include <acul/string/utils.hpp>
 #include <amal/bin_stream.hpp>
 #include <amal/rect.hpp>
+#include <iterator>
 #include <umbf/symbol_export.h>
 
-#define UMBF_MAGIC                   0xCA9FB393
-#define UMBF_VENDOR_ID               0xBC037D
-#define UMBF_COMPRESSION_PAYLOAD_BIT 0x1
-#define UMBF_COMPRESSION_MAPPED_BIT  0x2
+#define UMBF_MAGIC     0xCA9FB393
+#define UMBF_VENDOR_ID 0xBC037D
+
+#define UMBF_SEGMENT_RAW              0u
+#define UMBF_SEGMENT_COMPRESSED       0x4454535Au
+#define UMBF_SEGMENT_COMPRESSED_IMAGE 0x474D495Au
 
 namespace umbf
 {
-    // Meta
+    struct ReadDescriptor;
+    class BlockIterator;
+
+    struct Segment
+    {
+        u64 offset = 0;
+        u64 size = 0;
+        u32 block_count = 0;
+        u32 signature = UMBF_SEGMENT_RAW;
+    };
+
+    struct PayloadView
+    {
+        u32 signature = 0;
+        u32 tag = 0;
+        const char *data = nullptr;
+        u64 size = 0;
+
+        explicit operator bool() const noexcept { return signature != 0u; }
+    };
+
+    using SegmentBuffer = acul::vector<char>;
+
     struct Block
     {
+        u32 tag = 0;
         virtual ~Block() = default;
+        virtual u32 signature() const noexcept = 0;
+    };
 
-        virtual u32 signature() const = 0;
+    struct Header
+    {
+        u32 vendor_sign = 0;
+        u32 vendor_version = 0;
+        u32 spec_version = 0;
+        u32 type_sign = 0;
     };
 
     /**
      * @brief Represents a generic asset in the system.
      *
-     * The Asset structure holds common data for different asset types.
-     * The first block in the `blocks` array always corresponds to the type of the asset (e.g., Image, Material),
-     * and the remaining blocks contain additional metadata related to the asset.
+     * Persistent UMBF metadata. Segment bytes are deliberately not owned by File.
      */
-    struct File
+    struct File : Header
     {
-        struct Header
-        {
-            struct Pack;
-            u32 vendor_sign;
-            u32 vendor_version;
-            u32 spec_version;
-            u16 type_sign;
-            u8 flags;
-        } header;
-
-        using Payload = acul::vector<acul::shared_ptr<Block>>;
-        Payload blocks;
-        u32 checksum; //< Checksum of the asset for integrity validation.
-
-        /**
-         * @brief Reads and creates an asset from a binary stream.
-         * @param bytes The binary stream containing the asset data.
-         * @return A shared pointer to the created asset.
-         **/
-        static UMBF_EXPORT acul::shared_ptr<File> read_from_bytes(acul::bin_stream &bytes);
-
-        /**
-         * @brief Reads and creates an asset from a binary stream.
-         * @param path The path to the asset.
-         * @param dst The destination shared pointer to store the created asset.
-         * @return The result of the operation.
-         **/
-        static UMBF_EXPORT acul::op_result read_from_disk(const acul::string &path, acul::shared_ptr<File> &dst);
-
-        /**
-         * @brief Saves the asset to a file.
-         *
-         * This function saves the asset to the specified file path. It optionally
-         * compresses the asset data with a given compression level.
-         *
-         * @param path The path to save the asset file.
-         * @param compression The level of compression to apply (default is 5).
-         * @return True if the asset was saved successfully, false otherwise.
-         */
-        UMBF_EXPORT bool save(const acul::string &path, int compression = 5);
+        acul::vector<Segment> sg_table;
+        u32 checksum = 0; // CRC32C of decoded payload, stored in the file footer.
     };
 
-    struct File::Header::Pack
+    struct SegmentWriter
     {
-        u32 vendor_sign : 24;
-        u32 flags : 8;
-        u32 vendor_version : 24;
-        u32 type_sign_low : 8;
-        u32 type_sign_high : 8;
-        u32 spec_version : 24;
+        u32 signature = UMBF_SEGMENT_RAW;
+        u32 block_count = 0u;
     };
-
-    UMBF_EXPORT void pack_header(const File::Header &src, File::Header::Pack &dst);
-    UMBF_EXPORT void unpack_header(const File::Header::Pack &src, File::Header &dst);
 
     namespace sign_block
     {
         namespace format
         {
-            enum : u16
+            enum : u32
             {
                 none = 0x0,
-                image = 0x0490,
-                scene = 0xD20C,
-                material = 0x78DB,
-                target = 0x613E,
-                library = 0x1A2C,
-                raw = 0x4D4D,
-                mapping = 0xBC55
+                target = 0xC7DCA0DA,
+                library = 0x3500BDEA,
+                raw = 0xA031000C
             };
         } // namespace format
 
         enum : u32
         {
             raw = 0xF82E95C8,
-            image = 0x7684573F,
-            image_atlas = 0xA3903A92,
-            material = 0xA8D0C51E,
-            scene = 0xB7A3EE80,
-            mesh = 0xF224B521,
-            material_range = 0xC441E54D,
-            material_info = 0x6112A229,
             target = 0x0491F4E9,
-            library = 0x8D7824FA,
-            mapping = 0x3AC46A57
+            library = 0x8D7824FA
         };
     } // namespace sign_block
-
-    struct ImageFormat
-    {
-        struct Type
-        {
-            enum enum_type : u8
-            {
-                none,
-                uint,
-                sfloat,
-            };
-        };
-        u8 type;
-        u8 bytes_per_channel;
-
-        constexpr bool operator==(const ImageFormat &rhs) const
-        { return type == rhs.type && bytes_per_channel == rhs.bytes_per_channel; }
-
-#if !(defined(__cpp_impl_three_way_comparison) && __cpp_impl_three_way_comparison >= 201907)
-        constexpr bool operator!=(const ImageFormat &rhs) const { return !(*this == rhs); }
-#endif
-    };
-
-    // Represents a 2D image asset block.
-    struct Image2D : Block
-    {
-    public:
-        u32 width;                           //< Width of the image in pixels.
-        u32 height;                          //< Height of the image in pixels.
-        acul::vector<acul::string> channels; //< Names of the channels (e.g., "Red", "Green", "Blue").
-        ImageFormat format;                  //< Format of the image data.
-        void *pixels = nullptr;              //< Pointer to the raw pixel data.
-
-        /**
-         * @brief Calculates the size of the image in bytes.
-         *
-         * This function computes the total size of the image based on its dimensions,
-         * channel count, and bytes per channel.
-         *
-         * @return The total size of the image in bytes.
-         */
-        size_t size() const { return width * height * format.bytes_per_channel * channels.size(); }
-
-        /**
-         * @brief Returns the signature of the block.
-         *
-         * Provides a unique signature for the `Image2D` block type to distinguish it
-         * from other types of asset blocks.
-         *
-         * @return The signature of the block.
-         */
-        virtual u32 signature() const override { return sign_block::image; }
-    };
-
-    /**
-     * @brief Represents an atlas image block, derived from `Image2D`.
-     *
-     * The `Atlas` structure extends `Image2D` to support texture atlases. It includes
-     * additional fields to manage atlas-specific data such as discarded steps, images
-     * within the atlas, and packing data.
-     */
-    struct Atlas : Block
-    {
-        acul::vector<amal::irect> pack_data; //< Data about the placement of images within the atlas.
-        i16 padding;                         //< Padding between images in the atlas.
-
-        /**
-         * @brief Returns the signature of the atlas block.
-         *
-         * Provides a unique signature for the `Atlas` block type to distinguish it
-         * from other types of asset blocks, including `Image2D`.
-         *
-         * @return The signature of the block.
-         */
-        virtual u32 signature() const override { return sign_block::image_atlas; }
-    };
-
-    /// @brief Fill image pixels data after packing atlas
-    /// @param image Image block
-    /// @param atlas Atlas block
-    /// @param src Source images
-    UMBF_EXPORT void fill_atlas_pixels(const acul::shared_ptr<Image2D> &image, const acul::shared_ptr<Atlas> &atlas,
-                                       const acul::vector<acul::shared_ptr<Image2D>> &src);
-
-    // Represents a node of material properties.
-    struct MaterialNode
-    {
-        amal::vec3 rgb; //< RGB color value for the material.
-        bool textured;  //< Flag indicating if the material is textured.
-        i16 texture_id; //< Index of the texture. Defaults to -1 indicating no texture.
-    };
-
-    /**
-     * @brief Represents a material asset block.
-     *
-     * The `Material` structure is used to store information about a material, including
-     * references to texture assets and specific material properties such as albedo.
-     */
-    struct Material final : Block
-    {
-        acul::vector<File> textures; //< Array of texture assets associated with the material.
-        MaterialNode albedo;         //< Albedo property of the material, defining its base color.
-
-        /**
-         * @brief Returns the signature of the material block.
-         *
-         * Provides a unique signature for the `Material` block type to distinguish it
-         * from other types of asset blocks.
-         *
-         * @return The signature of the block.
-         */
-        virtual u32 signature() const override { return sign_block::material; }
-    };
-
-    /**
-     * @brief Represents a generic object within a scene.
-     *
-     * The `Object` structure contains basic information about an object, such as its name
-     * and transformation data (position, rotation, and scale). It also holds a collection
-     * of metadata blocks related to the object.
-     */
-    struct Object
-    {
-        Object() = default;
-        Object(u64 id, const acul::string &name) : id(id), name(name) {}
-
-        u64 id = 0u;                                //< Unique identifier for the object.
-        u64 parent_id = 0u;                         //< Optional parent object identifier.
-        acul::string name;                          //< The name of the object.
-        acul::vector<acul::shared_ptr<Block>> meta; //< Metadata associated with the object.
-    };
-
-    /**
-     * @brief Represents a scene containing multiple objects, textures, and materials.
-     *
-     * The `Scene` structure holds a collection of objects, textures, and materials that
-     * make up a scene.
-     */
-    struct Scene final : Block
-    {
-        acul::vector<Object> objects; //< Array of objects present in the scene.
-        acul::vector<File> textures;  //< Array of texture assets used in the scene.
-        acul::vector<File> materials; //< Array of material assets used in the scene.
-
-        /**
-         * @brief Returns the signature of the scene block.
-         *
-         * Provides a unique signature for the `Scene` block type to distinguish it
-         * from other types of asset blocks.
-         *
-         * @return The signature of the block.
-         */
-        virtual u32 signature() const override { return sign_block::scene; }
-    };
-
-    namespace mesh
-    {
-        /// Representation of a unique vertex per vertex attributes - Position, UV coordinates, Normals, etc.
-        /// Indexed structure for rendering purpose
-        struct Vertex
-        {
-            amal::vec3 pos{0.0f, 0.0f, 0.0f};    // Position
-            amal::vec2 uv{0.0f, 0.0f};           // UV
-            amal::vec3 normal{0.0f, 0.0f, 0.0f}; // Normal
-
-            bool operator==(const Vertex &other) const
-            { return pos == other.pos && uv == other.uv && normal == other.normal; }
-        };
-
-        /**
-         * @brief Represents a reference to a vertex within a group. The group index refers to a vertex group,
-         * and the vertex index refers to a specific vertex within that group.
-         */
-        struct VertexRef
-        {
-            u32 group;  ///< Index of the vertex group.
-            u32 vertex; ///< Index of the specific vertex within the entire vertex buffer
-        };
-
-        // Represents a group of vertices. Help structure. Not used directly in the UMBF Mesh.
-        struct VertexGroup
-        {
-            acul::vector<u32> vertices; ///< List of indices pointing to vertices in this group.
-            acul::vector<u32> faces;    ///< List of indices of faces that reference these vertices.
-        };
-
-        // Represents a polygon face.
-        struct Face
-        {
-            acul::vector<VertexRef> vertices; ///< List of vertex references that define the face.
-            amal::vec3 normal;                ///< The normal vector of the face
-            u32 first_vertex;                 ///< Starting index in the index buffer for this face.
-            u32 count;                        ///< Number of indices that define this face.
-        };
-
-        using AABB = acul::min_max<amal::vec3>;
-
-        // Represents a 3D mesh model.
-        struct Model
-        {
-            acul::vector<Vertex> vertices; ///< Array containing all vertices of the model.
-            u32 group_count;               ///< Size of the vertex group array.
-            acul::vector<Face> faces;      ///< Array of faces that make up the model.
-            acul::vector<u32> indices;     ///< Array of indices for rendering the model.
-            AABB aabb;                     ///< Axis-aligned bounding box that encloses the model.
-        };
-
-        struct Transform
-        {
-            amal::vec3 position = {0.0f, 0.0f, 0.0f};
-            amal::vec3 rotation = {0.0f, 0.0f, 0.0f};
-            amal::vec3 scale = {1.0f, 1.0f, 1.0f};
-            amal::vec3 center = {0.0f, 0.0f, 0.0f};
-        };
-
-        // Represents a block of mesh data.
-        struct Mesh : Block
-        {
-            Model model;         ///< The 3D model data contained in this mesh block.
-            Transform transform; ///< Transformation information for the mesh.
-
-            /**
-             * @brief Returns the signature of the block.
-             * @return The signature of the block.
-             */
-            virtual u32 signature() const override { return sign_block::mesh; }
-        };
-    } // namespace mesh
-
-    // Represents material information as an asset block.
-    struct MaterialInfo final : Block
-    {
-        u64 id;
-        acul::string name;             //< The name of the material.
-        acul::vector<u64> assignments; //< List of assignments objects IDs related to the material.
-
-        MaterialInfo(u64 id = 0, const acul::string &name = "", acul::vector<u64> assignments = {})
-            : id(id), name(name), assignments(assignments)
-        {
-        }
-
-        /**
-         * @brief Returns the signature of the block.
-         * @return The signature of the block.
-         */
-        virtual u32 signature() const override { return sign_block::material_info; }
-    };
-
-    /**
-     * @brief Represents material range assignment attributes as an asset block.
-     *
-     * The `MatRangeAssignAttr` structure holds information about the assignment of materials
-     * to specific ranges of faces. This can be used to specify different materials for different
-     * parts of a model or mesh.
-     */
-    struct MaterialRange : Block
-    {
-        u64 mat_id;              //< The ID of the material being assigned.
-        acul::vector<u32> faces; //< Array of face indices to which the material is assigned.
-
-        /**
-         * @brief Returns the signature of the block.
-         * @return The signature of the block.
-         */
-        virtual u32 signature() const override { return sign_block::material_range; }
-    };
 
     /**
      * Structure representing a Target asset.
@@ -395,15 +105,16 @@ namespace umbf
      */
     struct Target final : Block
     {
-        acul::string url;    // URL of the target resource
-        File::Header header; // Asset header for dst resource
-        u32 checksum;        // Checksum of the target resource.
+        acul::string url; // URL of the target resource
+        Header header;    // Metadata of the destination resource, without physical layout.
+        u32 checksum = 0; // Expected checksum of the target resource.
+
+        u32 signature() const noexcept override { return sign_block::target; }
 
         /**
          * @brief Returns the signature of the block.
          * @return The signature of the block.
          */
-        virtual u32 signature() const override { return sign_block::target; }
     };
 
     // The Library class serves as a storage for other assets. These assets can either be embedded or act as
@@ -413,17 +124,22 @@ namespace umbf
         // Represents a node in the file structure of the asset library.
         struct Node
         {
+            static constexpr u64 invalid_index = ~0ULL;
+            static constexpr u64 directory_index = ~0ULL - 1u;
+
             acul::string name;           // Name of the file node.
             acul::vector<Node> children; // Child nodes of this file node.
-            bool is_folder{false};       // Flag indicating if the node is a folder.
-            File asset;                  // The asset associated with the node.
+            u64 index = invalid_index;
+
+            bool is_directory() const noexcept { return index == directory_index; }
         } file_tree;
+
+        u32 signature() const noexcept override { return sign_block::library; }
 
         /**
          * @brief Returns the signature of the block.
          * @return The signature of the block.
          */
-        virtual u32 signature() const override { return sign_block::library; }
 
         /**
          * @brief Retrieves a list of assets associated with a specified path.
@@ -434,41 +150,119 @@ namespace umbf
         UMBF_EXPORT const Node *get_node(const acul::path &path) const;
     };
 
-    // Meta block reserved for common external resourcees
-    struct RawBlock : public Block
+    struct FileDescriptorBase
     {
-        char *data;
-        u64 data_size;
-
-        RawBlock(char *data = nullptr, u64 data_size = 0) : data(data), data_size(data_size) {}
-
-        virtual u32 signature() const { return sign_block::raw; }
-
-        ~RawBlock() { acul::release(data); }
-    };
-
-    struct Mapping : public Block
-    {
-        u64 offset;
-        u64 size;
-
-        virtual u32 signature() const { return sign_block::mapping; }
-    };
-
-    struct LibraryMapData
-    {
-        mutable FILE *fd = nullptr;
         acul::path path;
-        acul::shared_ptr<Library> library;
+        acul::shared_ptr<File> file;
+        u64 file_offset = 0;
+        u64 file_size = 0;
         u64 payload_offset = 0;
-        u64 payload_size = 0;
-        bool compressed = true;
     };
 
-    UMBF_EXPORT acul::op_result load_library_mapped(const acul::path &path, LibraryMapData &mapping);
-    UMBF_EXPORT acul::op_result load_library_mapped_data(const LibraryMapData &mapping,
-                                                         const acul::shared_ptr<Mapping> &node_mapping,
-                                                         acul::vector<char> &dst);
+    struct ReadDescriptor : FileDescriptorBase
+    {
+        acul::shared_ptr<acul::fs::mapped_file> mapping;
+
+        UMBF_EXPORT BlockIterator begin() const;
+        UMBF_EXPORT BlockIterator end() const;
+    };
+
+    struct WriteDescriptor : FileDescriptorBase
+    {
+        WriteDescriptor() = default;
+        UMBF_EXPORT ~WriteDescriptor() noexcept;
+        WriteDescriptor(const WriteDescriptor &) = delete;
+        WriteDescriptor &operator=(const WriteDescriptor &) = delete;
+        UMBF_EXPORT WriteDescriptor(WriteDescriptor &&other) noexcept;
+        UMBF_EXPORT WriteDescriptor &operator=(WriteDescriptor &&other) noexcept;
+
+        FILE *fd = nullptr;
+        u32 default_segment_signature = UMBF_SEGMENT_RAW;
+        int compression = 5;
+        bool finalized = false;
+        bool has_active_segment = false;
+        u64 active_segment_offset = 0u;
+        SegmentWriter active_segment;
+        SegmentBuffer active_segment_data;
+
+    private:
+        void swap(WriteDescriptor &other) noexcept;
+    };
+
+    UMBF_EXPORT acul::op_result create_write_descriptor(const Header &header, WriteDescriptor &descriptor,
+                                                        int compression = 5);
+    UMBF_EXPORT acul::op_result create_write_descriptor(const acul::path &path, const Header &header,
+                                                        WriteDescriptor &descriptor, int compression = 5);
+    UMBF_EXPORT SegmentWriter *add_segment(WriteDescriptor &file, u32 signature = UMBF_SEGMENT_RAW);
+    UMBF_EXPORT u32 add_payload(WriteDescriptor &file, u32 signature, const void *data, u64 size,
+                                SegmentWriter *segment = nullptr, u32 tag = 0u);
+    UMBF_EXPORT u32 add_file(WriteDescriptor &file, WriteDescriptor &nested, SegmentWriter *segment = nullptr, u32 tag = 0u);
+    UMBF_EXPORT bool finalize_file(WriteDescriptor &descriptor);
+    UMBF_EXPORT bool save_file(WriteDescriptor &descriptor, const acul::string &path);
+
+    UMBF_EXPORT acul::op_result create_read_descriptor(const ReadDescriptor &parent, const BlockIterator &block,
+                                                       ReadDescriptor &descriptor, u32 type_sign = 0u);
+
+    /**
+     * Single-pass iterator over the global block order. Segment boundaries are handled internally and remain a
+     * physical storage detail. A PayloadView remains valid until the iterator moves to another segment.
+     */
+    class BlockIterator
+    {
+    public:
+        using value_type = PayloadView;
+        using difference_type = std::ptrdiff_t;
+        using pointer = const PayloadView *;
+        using reference = const PayloadView &;
+        using iterator_category = std::input_iterator_tag;
+
+        BlockIterator() = default;
+        UMBF_EXPORT explicit BlockIterator(const ReadDescriptor &descriptor, u64 first_block = 0u);
+
+        UMBF_EXPORT acul::op_result reset(const ReadDescriptor &descriptor, u64 first_block = 0u);
+        UMBF_EXPORT reference operator*() const noexcept;
+        UMBF_EXPORT pointer operator->() const noexcept;
+        UMBF_EXPORT BlockIterator &operator++();
+        UMBF_EXPORT BlockIterator operator++(int);
+        UMBF_EXPORT bool operator==(const BlockIterator &other) const noexcept;
+        bool operator!=(const BlockIterator &other) const noexcept { return !(*this == other); }
+        explicit operator bool() const noexcept { return static_cast<bool>(_current); }
+        bool failed() const noexcept { return !_result.success(); }
+        const acul::op_result &result() const noexcept { return _result; }
+
+        UMBF_EXPORT bool read(u32 expected_signature, void *&block) const;
+        UMBF_EXPORT acul::shared_ptr<Block> read() const;
+
+    private:
+        friend UMBF_EXPORT acul::op_result create_read_descriptor(const ReadDescriptor &, const BlockIterator &,
+                                                                  ReadDescriptor &, u32);
+
+        UMBF_EXPORT acul::op_result load_segment();
+        UMBF_EXPORT bool prepare_current();
+        UMBF_EXPORT void set_end() noexcept;
+
+        const ReadDescriptor *_source = nullptr;
+        u32 _segment_index = 0u;
+        u32 _block_index = 0u;
+        acul::shared_ptr<acul::bin_stream> _stream;
+        PayloadView _current;
+        size_t _payload_begin = 0u;
+        size_t _payload_end = 0u;
+        acul::op_result _result = acul::make_op_success();
+    };
+
+    UMBF_EXPORT acul::op_result create_read_descriptor(const acul::path &path, ReadDescriptor &descriptor);
+    UMBF_EXPORT acul::op_result read_segment(const ReadDescriptor &descriptor, u32 segment_index,
+                                             acul::vector<char> &dst);
+    UMBF_EXPORT bool get_block_view(const SegmentBuffer &segment, u32 block_count, u32 block_index,
+                                    PayloadView &block) noexcept;
+    UMBF_EXPORT acul::op_result read_block(const ReadDescriptor &descriptor, u32 segment_index, u32 block_index,
+                                           acul::vector<char> &segment_data, PayloadView &block);
+    UMBF_EXPORT acul::op_result read_block(const ReadDescriptor &descriptor, u64 index, acul::vector<char> &segment_data,
+                                           PayloadView &block);
+    UMBF_EXPORT void close_map_descriptor(ReadDescriptor &descriptor) noexcept;
+    UMBF_EXPORT void close_map_descriptor(WriteDescriptor &descriptor) noexcept;
+    UMBF_EXPORT acul::shared_ptr<Block> get_block(const BlockIterator &iterator);
 
     /**
      * Class responsible for managing asset libraries.
@@ -516,156 +310,81 @@ namespace umbf
         acul::hashmap<acul::string, acul::shared_ptr<Library>> _libraries;
     };
 
-    namespace streams
+    namespace registry
     {
-        struct Stream
+        struct BlockStream
         {
-            Block *(*read)(acul::bin_stream &stream);
-            void (*write)(acul::bin_stream &stream, Block *block);
+            void *(*read)(acul::bin_stream &stream);
+            void (*write)(acul::bin_stream &stream, void *block);
+        };
+
+        struct SegmentCodec
+        {
+            acul::op_result (*encode)(const SegmentBuffer &sg_buffer, u32 block_count, int compression,
+                                      acul::vector<char> &dst);
+            acul::op_result (*decode)(const char *data, u64 size, u32 block_count, acul::vector<char> &dst);
         };
 
         class Resolver
         {
         public:
-            virtual const Stream *get_stream(u32 signature) = 0;
+            virtual const BlockStream *get_block_stream(u32 signature) = 0;
+            virtual const SegmentCodec *get_segment_codec(u32 signature) = 0;
         };
 
         class HashResolver final : public Resolver
         {
         public:
-            acul::hashmap<u32, const Stream *> streams;
+            acul::hashmap<u32, const BlockStream *> block_streams;
+            acul::hashmap<u32, const SegmentCodec *> segment_codecs;
 
-            virtual const Stream *get_stream(u32 signature) override
+            virtual const BlockStream *get_block_stream(u32 signature) override
             {
-                auto it = streams.find(signature);
-                return it == streams.end() ? nullptr : it->second;
+                auto it = block_streams.find(signature);
+                return it == block_streams.end() ? nullptr : it->second;
+            }
+
+            virtual const SegmentCodec *get_segment_codec(u32 signature) override
+            {
+                auto it = segment_codecs.find(signature);
+                return it == segment_codecs.end() ? nullptr : it->second;
             }
         };
 
         extern UMBF_EXPORT Resolver *resolver;
-        extern UMBF_EXPORT const Stream image;
-        extern UMBF_EXPORT const Stream image_atlas;
-        extern UMBF_EXPORT const Stream material;
-        extern UMBF_EXPORT const Stream material_info;
-        extern UMBF_EXPORT const Stream material_range;
-        extern UMBF_EXPORT const Stream scene;
-        extern UMBF_EXPORT const Stream mesh;
-        extern UMBF_EXPORT const Stream target;
-        extern UMBF_EXPORT const Stream library;
-        extern UMBF_EXPORT const Stream raw_block;
-        extern UMBF_EXPORT const Stream mapping_block;
-    } // namespace streams
+        extern UMBF_EXPORT const BlockStream target;
+        extern UMBF_EXPORT const BlockStream library;
+        extern UMBF_EXPORT const SegmentCodec segment_compress_codec;
+    } // namespace registry
 
-    UMBF_EXPORT void insert_default_streams(streams::HashResolver &resolver);
+    inline void insert_default_block_streams(registry::HashResolver &resolver)
+    {
+        resolver.block_streams[sign_block::target] = &registry::target;
+        resolver.block_streams[sign_block::library] = &registry::library;
+    }
+
+    inline void insert_default_segment_codecs(registry::HashResolver &resolver)
+    {
+        resolver.segment_codecs[UMBF_SEGMENT_COMPRESSED] = &registry::segment_compress_codec;
+    }
+
+    UMBF_EXPORT bool write_block_to_stream(acul::bin_stream &stream, const Block &block);
+    UMBF_EXPORT bool read_block_from_stream(acul::bin_stream &stream, acul::shared_ptr<Block> &block);
+
+    inline u32 add_raw_block(WriteDescriptor &file, const void *data, u64 size, SegmentWriter *segment = nullptr,
+                             u32 tag = 0u)
+    {
+        return add_payload(file, sign_block::raw, data, size, segment, tag);
+    }
+
+    UMBF_EXPORT u32 add_block(WriteDescriptor &file, Block *block, SegmentWriter *segment = nullptr);
 } // namespace umbf
 
 namespace acul
 {
     template <>
-    UMBF_EXPORT bin_stream &bin_stream::write(const vector<acul::shared_ptr<umbf::Block>> &meta);
-
-    template <>
-    UMBF_EXPORT bin_stream &bin_stream::read(vector<acul::shared_ptr<umbf::Block>> &meta);
-
-    template <>
-    UMBF_EXPORT bin_stream &bin_stream::write(const vector<umbf::Block *> &meta);
-
-    template <>
-    UMBF_EXPORT bin_stream &bin_stream::read(vector<umbf::Block *> &meta);
-
-    template <>
-    UMBF_EXPORT bin_stream &bin_stream::write(umbf::Block *const &block);
-
-    template <>
-    UMBF_EXPORT bin_stream &bin_stream::read(umbf::Block *&block);
-
-    template <>
-    inline bin_stream &bin_stream::write(const umbf::File::Header &header)
-    {
-        umbf::File::Header::Pack pack;
-        umbf::pack_header(header, pack);
-        return write(pack);
-    }
-
-    template <>
-    inline bin_stream &bin_stream::write(const umbf::File &file)
-    { return write(file.header).write(file.blocks); }
-
-    template <>
-    inline bin_stream &bin_stream::read(umbf::File::Header &dst)
-    {
-        umbf::File::Header::Pack pack;
-        read(pack);
-        umbf::unpack_header(pack, dst);
-        return *this;
-    }
-
-    template <>
-    inline bin_stream &bin_stream::read(umbf::File &dst)
-    { return read(dst.header).read(dst.blocks); }
-
-    template <>
-    inline bin_stream &bin_stream::write(const vector<umbf::File> &assets)
-    {
-        write(static_cast<u16>(assets.size()));
-        for (auto &asset : assets) write(asset);
-        return *this;
-    }
-
-    template <>
-    bin_stream &bin_stream::read(vector<umbf::File> &dst);
-
-    template <>
-    inline bin_stream &bin_stream::write(const umbf::MaterialNode &src)
-    {
-        u16 data = src.textured ? ((1 << 15) | (src.texture_id & 0x7FFF)) : 0;
-        return write(src.rgb).write(data);
-    }
-
-    template <>
-    bin_stream &bin_stream::read(umbf::MaterialNode &dst);
-
-    template <>
     bin_stream &bin_stream::write(const umbf::Library::Node &node);
 
     template <>
     bin_stream &bin_stream::read(umbf::Library::Node &node);
-} // namespace acul
-
-namespace std
-{
-    template <>
-    struct hash<umbf::mesh::Vertex>
-    {
-        size_t operator()(const umbf::mesh::Vertex &vertex) const
-        {
-            size_t seed = 0;
-            acul::hash_combine(seed, vertex.pos);
-            acul::hash_combine(seed, vertex.uv);
-            acul::hash_combine(seed, vertex.normal);
-            return seed;
-        }
-    };
-} // namespace std
-
-namespace acul
-{
-    inline string to_string(umbf::ImageFormat::Type::enum_type type)
-    {
-        switch (type)
-        {
-            case umbf::ImageFormat::Type::uint:
-                return "uint";
-            case umbf::ImageFormat::Type::sfloat:
-                return "sfloat";
-            default:
-                return "unknown";
-        }
-    }
-
-    inline string to_string(umbf::ImageFormat format)
-    {
-        return acul::format("%dbit %s", format.bytes_per_channel * 8,
-                            to_string((umbf::ImageFormat::Type::enum_type)format.type).c_str());
-    }
 } // namespace acul

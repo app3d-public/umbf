@@ -1,11 +1,16 @@
 #pragma once
 
-#include <acul/enum.hpp>
-#include <amal/rect.hpp>
-#include "umbf.hpp"
+#include "image.hpp"
 
-namespace umbf::utils
+namespace umbf
 {
+    /// @brief Fill image pixels data after packing atlas
+    /// @param image Image block
+    /// @param atlas Atlas block
+    /// @param src Source images
+    UMBF_EXPORT void fill_atlas_pixels(const acul::shared_ptr<Image2D> &image, const acul::shared_ptr<Atlas> &atlas,
+                                       const acul::vector<acul::shared_ptr<Image2D>> &src);
+
     // Create transparent pixel depending on image format
     UMBF_EXPORT acul::unique_ptr<void> make_clear_pixel(const umbf::ImageFormat &format, size_t channel_count);
 
@@ -63,16 +68,6 @@ namespace umbf::utils
         const int src_channels = static_cast<int>(image.channels.size());
         return convert_buffer(image.pixels, image.size(), image.format, src_channels, format, channels);
     }
-
-    UMBF_EXPORT void filter_mat_assignments(const acul::vector<acul::shared_ptr<MaterialRange>> &assignes,
-                                            size_t face_count, u64 default_id,
-                                            acul::vector<acul::shared_ptr<MaterialRange>> &dst);
-
-    namespace mesh
-    {
-        using namespace umbf::mesh;
-        UMBF_EXPORT void fill_vertex_groups(const Model &model, acul::vector<VertexGroup> &groups);
-    } // namespace mesh
 
     struct SkylineHeuristic
     {
@@ -207,4 +202,4 @@ namespace umbf::utils
     {
         return pack_max_rects(atlas_size, locked_count, rects, &transforms, heuristic, allowed_transforms, padding);
     }
-} // namespace umbf::utils
+} // namespace umbf
