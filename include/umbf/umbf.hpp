@@ -33,6 +33,13 @@ namespace umbf
         u32 signature = UMBF_SEGMENT_RAW;
     };
 
+    // Borrowed bytes. Lifetime is controlled by the mapping or async result owner.
+    struct ByteView
+    {
+        const char *data = nullptr;
+        u64 size = 0;
+    };
+
     struct PayloadView
     {
         u32 signature = 0;
@@ -196,7 +203,7 @@ namespace umbf
     UMBF_EXPORT SegmentWriter *add_segment(WriteDescriptor &file, u32 signature = UMBF_SEGMENT_RAW);
     UMBF_EXPORT u32 add_payload(WriteDescriptor &file, u32 signature, const void *data, u64 size,
                                 SegmentWriter *segment = nullptr, u32 tag = 0u);
-    UMBF_EXPORT u32 add_file(WriteDescriptor &file, WriteDescriptor &nested, SegmentWriter *segment = nullptr, u32 tag = 0u);
+    UMBF_EXPORT u32 add_file(WriteDescriptor &file, WriteDescriptor &nested, SegmentWriter *segment = nullptr);
     UMBF_EXPORT bool finalize_file(WriteDescriptor &descriptor);
     UMBF_EXPORT bool save_file(WriteDescriptor &descriptor, const acul::string &path);
 
@@ -258,10 +265,10 @@ namespace umbf
                                     PayloadView &block) noexcept;
     UMBF_EXPORT acul::op_result read_block(const ReadDescriptor &descriptor, u32 segment_index, u32 block_index,
                                            acul::vector<char> &segment_data, PayloadView &block);
-    UMBF_EXPORT acul::op_result read_block(const ReadDescriptor &descriptor, u64 index, acul::vector<char> &segment_data,
-                                           PayloadView &block);
-    UMBF_EXPORT void close_map_descriptor(ReadDescriptor &descriptor) noexcept;
-    UMBF_EXPORT void close_map_descriptor(WriteDescriptor &descriptor) noexcept;
+    UMBF_EXPORT acul::op_result read_block(const ReadDescriptor &descriptor, u64 index,
+                                           acul::vector<char> &segment_data, PayloadView &block);
+    UMBF_EXPORT void close_read_descriptor(ReadDescriptor &descriptor) noexcept;
+    UMBF_EXPORT void close_write_descriptor(WriteDescriptor &descriptor) noexcept;
     UMBF_EXPORT acul::shared_ptr<Block> get_block(const BlockIterator &iterator);
 
     /**

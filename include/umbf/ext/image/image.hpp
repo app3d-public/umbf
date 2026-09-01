@@ -70,7 +70,7 @@ namespace umbf
          *
          * @return The total size of the image in bytes.
          */
-        size_t size() const { return width * height * format.bytes_per_channel * channels.size(); }
+        size_t size() const { return static_cast<size_t>(width) * height * format.bytes_per_channel * channels.size(); }
 
         u32 signature() const noexcept override { return sign_block::image; }
 

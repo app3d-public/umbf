@@ -6,6 +6,15 @@ namespace umbf::registry
 {
     namespace
     {
+        u64 pixel_data_size(const Image2D &image)
+        {
+            if (image.channels.size() > UINT8_MAX) throw acul::runtime_error("Too many image channel names");
+            const u64 count = static_cast<u64>(image.width) * image.height;
+            const u64 stride = static_cast<u64>(image.format.bytes_per_channel) * image.channels.size();
+            if (stride && count > UINT64_MAX / stride) throw acul::runtime_error("Image byte size overflow");
+            return count * stride;
+        }
+
         void write_image_info(acul::bin_stream &stream, Image2D *image)
         {
             stream.write(image->width).write(image->height);
@@ -18,9 +27,10 @@ namespace umbf::registry
         void write_image(acul::bin_stream &stream, void *block)
         {
             auto *image = static_cast<Image2D *>(block);
+            const u64 size = pixel_data_size(*image);
+            if (size && !image->pixels) throw acul::runtime_error("Pixels cannot be null");
             write_image_info(stream, image);
-            if (!image->pixels) throw acul::runtime_error("Pixels cannot be null");
-            stream.write(static_cast<const char *>(image->pixels), image->size());
+            if (size) stream.write(static_cast<const char *>(image->pixels), size);
         }
 
         void read_image_info(acul::bin_stream &stream, Image2D *image)
@@ -35,11 +45,25 @@ namespace umbf::registry
         void *read_image(acul::bin_stream &stream)
         {
             auto *image = acul::alloc<Image2D>();
-            read_image_info(stream, image);
-            char *pixels = acul::alloc_n<char>(image->size());
-            stream.read(pixels, image->size());
-            image->pixels = pixels;
-            return image;
+            try
+            {
+                read_image_info(stream, image);
+                const u64 size = pixel_data_size(*image);
+                if (stream.pos() > stream.size() || size > stream.size() - stream.pos())
+                    throw acul::runtime_error("Truncated image pixels");
+                if (size)
+                {
+                    image->pixels = acul::alloc_n<char>(size);
+                    stream.read(static_cast<char *>(image->pixels), size);
+                }
+                return image;
+            }
+            catch (...)
+            {
+                acul::release(image->pixels);
+                acul::release(image);
+                throw;
+            }
         }
 
         void write_image_atlas(acul::bin_stream &stream, void *block)
@@ -114,11 +138,10 @@ namespace umbf::registry
 
                 if (offset > size || sizeof(u8) * 2u > size - offset) return false;
                 const u8 bytes_per_channel = static_cast<u8>(data[offset]);
-                const u8 format_type = static_cast<u8>(data[offset + 1u]);
-                if (!bytes_per_channel || format_type == ImageFormat::Type::none) return false;
+                if (!bytes_per_channel) return false;
 
                 layout.bytes_per_pixel = static_cast<u64>(channel_count) * bytes_per_channel;
-                if (layout.bytes_per_pixel > SIZE_MAX || width > UINT64_MAX / layout.bytes_per_pixel) return false;
+                if (width > UINT64_MAX / layout.bytes_per_pixel) return false;
                 layout.scanline_size = static_cast<u64>(width) * layout.bytes_per_pixel;
                 if (layout.height > UINT64_MAX / layout.scanline_size) return false;
                 layout.pixel_size = static_cast<u64>(layout.height) * layout.scanline_size;
@@ -130,7 +153,7 @@ namespace umbf::registry
             }
             const u64 filter_size = filtered ? layout.height : 0u;
             if (layout.pixel_size > UINT64_MAX - filter_size || layout.pixel_offset > size ||
-                layout.pixel_size + filter_size != size - layout.pixel_offset || layout.pixel_size > SIZE_MAX)
+                layout.pixel_size + filter_size != size - layout.pixel_offset)
                 return false;
             return true;
         }
@@ -231,8 +254,7 @@ namespace umbf::registry
         bool filter_image_payload(const char *data, u64 size, acul::vector<char> &dst)
         {
             ImagePayloadLayout layout;
-            if (!read_image_payload_layout(data, size, false, layout) || layout.scanline_size > SIZE_MAX ||
-                size > SIZE_MAX - layout.height)
+            if (!read_image_payload_layout(data, size, false, layout) || size > UINT64_MAX - layout.height)
                 return false;
 
             dst.assign(data, data + static_cast<size_t>(layout.pixel_offset));
@@ -271,8 +293,8 @@ namespace umbf::registry
         bool unfilter_image_payload(const char *data, u64 size, acul::vector<char> &dst)
         {
             ImagePayloadLayout layout;
-            if (!read_image_payload_layout(data, size, true, layout) || layout.scanline_size > SIZE_MAX ||
-                layout.pixel_offset > SIZE_MAX || layout.pixel_size > SIZE_MAX - layout.pixel_offset)
+            if (!read_image_payload_layout(data, size, true, layout) ||
+                layout.pixel_size > UINT64_MAX - layout.pixel_offset)
                 return false;
 
             dst.assign(data, data + static_cast<size_t>(layout.pixel_offset));
@@ -304,7 +326,7 @@ namespace umbf::registry
         bool transform_image_blocks(const acul::vector<char> &src, u32 block_count, bool inverse,
                                     acul::vector<char> &dst)
         {
-            constexpr u64 block_header_size = sizeof(Block);
+            constexpr u64 block_header_size = (sizeof(u32) * 2u + sizeof(u64));
             acul::bin_stream output;
             bool transformed = false;
             u64 input_offset = 0u;
@@ -332,7 +354,8 @@ namespace umbf::registry
                         transformed = true;
                     }
                     else payload.assign(payload_data, payload_data + static_cast<size_t>(size));
-                    output.write(signature).write(tag)
+                    output.write(signature)
+                        .write(tag)
                         .write(static_cast<u64>(payload.size()))
                         .write(payload.data(), payload.size());
                     input_offset += size;
@@ -357,12 +380,12 @@ namespace umbf::registry
             ACUL_TRY(acul::fs::compress(segment.data(), segment.size(), compressed, compression));
 
             acul::vector<char> predicted;
-            if (!transform_image_blocks(segment, block_count, false, predicted))
-                return acul::make_op_error(ACUL_OP_ERROR_GENERIC);
+            const bool can_predict = transform_image_blocks(segment, block_count, false, predicted);
             acul::vector<char> predicted_compressed;
-            ACUL_TRY(acul::fs::compress(predicted.data(), predicted.size(), predicted_compressed, compression));
+            if (can_predict)
+                ACUL_TRY(acul::fs::compress(predicted.data(), predicted.size(), predicted_compressed, compression));
 
-            const bool use_predictor = predicted_compressed.size() < compressed.size();
+            const bool use_predictor = can_predict && predicted_compressed.size() < compressed.size();
             const auto &selected = use_predictor ? predicted_compressed : compressed;
             dst.clear();
             dst.reserve(selected.size() + sizeof(u8));
@@ -376,8 +399,7 @@ namespace umbf::registry
         {
             constexpr u8 transform_none = 0u;
             constexpr u8 transform_scanline_filters = 1u;
-            if (!data || size <= sizeof(u8) || size - sizeof(u8) > SIZE_MAX)
-                return acul::make_op_error(ACUL_OP_INVALID_SIZE);
+            if (!data || size <= sizeof(u8)) return acul::make_op_error(ACUL_OP_INVALID_SIZE);
             const auto transform = static_cast<u8>(data[0]);
             if (transform != transform_none && transform != transform_scanline_filters)
                 return acul::make_op_error(ACUL_OP_ERROR_GENERIC);

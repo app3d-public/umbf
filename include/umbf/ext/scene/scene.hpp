@@ -1,6 +1,8 @@
 #pragma once
 
+#include <acul/range.hpp>
 #include <umbf/umbf.hpp>
+
 
 namespace umbf
 {
@@ -77,7 +79,7 @@ namespace umbf
             u32 count;                        ///< Number of indices that define this face.
         };
 
-        using AABB = acul::min_max<amal::vec3>;
+        using AABB = acul::minmax<amal::vec3>;
 
         // Represents a 3D mesh geometry.
         struct Geometry
