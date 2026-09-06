@@ -19,21 +19,27 @@ namespace umbf::detail
             return acul::make_op_error(ACUL_OP_READ_ERROR);
         }
     }
-    acul::op_result parse_footer(ByteView bytes, u64 offset, u64 size, bool magic, File &file, Layout &layout)
+    acul::op_result parse_layout(ByteView bytes, u64 offset, u64 size, bool magic, Layout &layout)
     {
         const u64 header_size = magic ? 20u : 16u;
-        if (!bytes.data || bytes.size != footer_size || size < header_size + footer_size || offset > UINT64_MAX - size)
+        if (!bytes.data || bytes.size != layout_header_size || size < header_size + layout_header_size ||
+            offset > UINT64_MAX - size)
             return acul::make_op_error(ACUL_OP_INVALID_SIZE);
         try
         {
-            acul::bin_stream stream(bytes.data, footer_size);
-            u64 payload = 0;
-            stream.read(payload).read(file.checksum);
-            if (payload > size - header_size - footer_size) return acul::make_op_error(ACUL_OP_INVALID_SIZE);
-            const u64 table = size - header_size - footer_size - payload;
-            if (table % table_entry_size || table / table_entry_size > UINT32_MAX)
+            acul::bin_stream stream(bytes.data, layout_header_size);
+            u64 table = 0, payload = 0;
+            stream.read(table).read(payload);
+            if (table == UMBF_INVALID_SIZE || payload == UMBF_INVALID_SIZE ||
+                payload > size - header_size - layout_header_size ||
+                table > size - header_size - layout_header_size - payload || table % table_entry_size)
                 return acul::make_op_error(ACUL_OP_INVALID_SIZE);
-            layout = {offset, size, offset + header_size, payload, offset + header_size + payload, table};
+            const u64 committed_size = header_size + layout_header_size + payload + table;
+            // A table-less payload is append-only. A crash may leave uncommitted bytes after payload_size; they are
+            // outside the logical file and intentionally ignored. Embedded-table files remain exact.
+            if (table != 0u && committed_size != size) return acul::make_op_error(ACUL_OP_INVALID_SIZE);
+            const u64 payload_offset = offset + header_size + layout_header_size;
+            layout = {offset, committed_size, payload_offset, payload, payload_offset + payload, table};
             return acul::make_op_success();
         }
         catch (...)
@@ -52,7 +58,7 @@ namespace umbf::detail
             u64 previous_end = 0;
             for (auto &s : file.sg_table)
             {
-                stream.read(s.offset).read(s.size).read(s.block_count).read(s.signature);
+                stream.read(s.offset).read(s.size).read(s.block_count).read(s.signature).read(s.checksum);
                 if (s.offset < previous_end || s.offset > layout.payload_size ||
                     s.size > layout.payload_size - s.offset)
                     return acul::make_op_error(ACUL_OP_INVALID_SIZE);
@@ -73,7 +79,9 @@ namespace umbf::detail
             u32 sign = 0, tag = 0;
             u64 size = 0;
             stream.read(sign).read(tag).read(size);
-            if (!sign || stream.pos() > stream.size() || size > stream.size() - stream.pos()) return false;
+            if ((!sign && (tag != 0u || size != 0u)) || stream.pos() > stream.size() ||
+                size > stream.size() - stream.pos())
+                return false;
             begin = stream.pos();
             end = begin + static_cast<size_t>(size);
             view = {sign, tag, stream.data() + begin, size};
@@ -106,8 +114,17 @@ namespace umbf::detail
                 }
             }
             const auto result = validate_segment({out.data(), out.size()}, s.block_count);
-            if (!result.success()) out.clear();
-            return result;
+            if (!result.success())
+            {
+                out.clear();
+                return result;
+            }
+            if (acul::crc32(0u, out.data(), out.size()) != s.checksum)
+            {
+                out.clear();
+                return acul::make_op_error(ACUL_OP_CHECKSUM_ERROR);
+            }
+            return acul::make_op_success();
         }
         catch (...)
         {
@@ -131,7 +148,8 @@ namespace umbf::detail
                 u64 size;
                 header.read(sign).read(tag).read(size);
                 offset += block_header_size;
-                if (!sign || size > bytes.size - offset) throw acul::runtime_error("Invalid block size");
+                if ((!sign && (tag != 0u || size != 0u)) || size > bytes.size - offset)
+                    throw acul::runtime_error("Invalid block size");
                 offset += size;
             }
             if (offset != bytes.size) throw acul::runtime_error("Invalid segment size");
@@ -142,7 +160,7 @@ namespace umbf::detail
             return acul::make_op_error(ACUL_OP_INVALID_SIZE);
         }
     }
-    bool read_block(acul::bin_stream &stream, const PayloadView &view, size_t begin, size_t end, void *&out)
+    bool read_block(acul::bin_stream &stream, const PayloadView &view, size_t begin, size_t end, Block *&out)
     {
         out = nullptr;
         const auto *reader = registry::resolver ? registry::resolver->get_block_stream(view.signature) : nullptr;
@@ -162,7 +180,7 @@ namespace umbf::detail
             stream.pos(begin);
             stream.size(end);
             out = reader->read(stream);
-            if (out) static_cast<Block *>(out)->tag = view.tag;
+            if (out) out->tag = view.tag;
             return out != nullptr;
         }
         catch (...)

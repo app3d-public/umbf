@@ -4,20 +4,38 @@ namespace umbf::registry
 {
     namespace
     {
-        void write_object_info(acul::bin_stream &stream, void *block)
+        void write_object_info(acul::bin_stream &stream, umbf::Block *block)
         {
             auto *object = static_cast<ObjectInfo *>(block);
             stream.write(object->id).write(object->parent_id).write(object->name);
         }
 
-        void *read_object_info(acul::bin_stream &stream)
+        umbf::Block *read_object_info(acul::bin_stream &stream)
         {
             auto *object = acul::alloc<ObjectInfo>();
             stream.read(object->id).read(object->parent_id).read(object->name);
             return object;
         }
 
-        void write_mesh(acul::bin_stream &stream, void *block)
+        void write_object_list(acul::bin_stream &stream, umbf::Block *block)
+        {
+            const auto &objects = static_cast<ObjectList *>(block)->objects;
+            if (objects.size() > UINT32_MAX) throw acul::runtime_error("Too many scene objects");
+            stream.write(static_cast<u32>(objects.size()));
+            for (const auto &range : objects) stream.write(range.first_block).write(range.block_count);
+        }
+
+        umbf::Block *read_object_list(acul::bin_stream &stream)
+        {
+            auto *list = acul::alloc<ObjectList>();
+            u32 count = 0u;
+            stream.read(count);
+            list->objects.resize(count);
+            for (auto &range : list->objects) stream.read(range.first_block).read(range.block_count);
+            return list;
+        }
+
+        void write_mesh(acul::bin_stream &stream, umbf::Block *block)
         {
             auto *mesh = static_cast<mesh::Mesh *>(block);
             auto &geometry = mesh->geometry;
@@ -46,7 +64,7 @@ namespace umbf::registry
                 .write(mesh->transform.center);
         }
 
-        void *read_mesh(acul::bin_stream &stream)
+        umbf::Block *read_mesh(acul::bin_stream &stream)
         {
             auto *mesh = acul::alloc<mesh::Mesh>();
             auto &geometry = mesh->geometry;
@@ -88,6 +106,7 @@ namespace umbf::registry
 
     const BlockStream object_info{read_object_info, write_object_info};
     const BlockStream mesh{read_mesh, write_mesh};
+    const BlockStream object_list{read_object_list, write_object_list};
 } // namespace umbf::registry
 
 namespace umbf
@@ -96,5 +115,6 @@ namespace umbf
     {
         resolver.block_streams[sign_block::object_info] = &registry::object_info;
         resolver.block_streams[sign_block::mesh] = &registry::mesh;
+        resolver.block_streams[sign_block::scene_objects_list] = &registry::object_list;
     }
 } // namespace umbf

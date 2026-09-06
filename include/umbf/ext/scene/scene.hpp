@@ -13,15 +13,14 @@ namespace umbf
             enum : u32
             {
                 scene = 0xB5F1EEB1,
-                scene_object = 0x7EA13B42,
-                scene_objects_list = 0xB7A3EE80,
             };
         }
 
         enum : u32
         {
             object_info = 0x7EA13B42,
-            mesh = 0xF224B521
+            mesh = 0xF224B521,
+            scene_objects_list = 0xB7A3EE80,
         };
     } // namespace sign_block
 
@@ -35,6 +34,13 @@ namespace umbf
         ObjectInfo(u64 id, const acul::string &name, u64 parent_id = 0u) : id(id), parent_id(parent_id), name(name) {}
 
         u32 signature() const noexcept override { return sign_block::object_info; }
+    };
+
+    struct ObjectList final : Block
+    {
+        acul::vector<BlockRange> objects;
+
+        u32 signature() const noexcept override { return sign_block::scene_objects_list; }
     };
 
     namespace mesh
@@ -113,6 +119,7 @@ namespace umbf
     {
         extern UMBF_EXPORT const BlockStream object_info;
         extern UMBF_EXPORT const BlockStream mesh;
+        extern UMBF_EXPORT const BlockStream object_list;
     } // namespace registry
 
     UMBF_EXPORT void insert_scene_streams(registry::HashResolver &resolver);

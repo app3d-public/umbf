@@ -1,29 +1,41 @@
-#include <umbf/async.hpp>
+#include <umbf/range.hpp>
 #include "read.hpp"
 
-namespace umbf::async
+namespace umbf::range
 {
-    acul::op_result get_segment_table_range(ByteView footer, FileRange file, FileRange &table, bool magic)
+    acul::op_result get_segment_table_range(ByteView metadata, FileRange file, FileRange &table, bool magic)
     {
         table = {};
-        File metadata;
+        const u64 header_size = magic ? 20u : 16u;
+        if (!metadata.data || metadata.size != metadata_size(magic))
+            return acul::make_op_error(ACUL_OP_INVALID_SIZE);
         detail::Layout layout;
-        ACUL_TRY(detail::parse_footer(footer, file.offset, file.size, magic, metadata, layout));
+        ACUL_TRY(detail::parse_layout({metadata.data + header_size, detail::layout_header_size}, file.offset,
+                                      file.size, magic, layout));
         table = {layout.table_offset, layout.table_size};
         return acul::make_op_success();
     }
 
-    acul::op_result create_read_descriptor(ByteView header, ByteView footer, ByteView table, FileRange file,
-                                           ReadDescriptor &out, bool magic)
+    acul::op_result create_read_descriptor(ByteView metadata, ByteView table, FileRange file, ReadDescriptor &out,
+                                           bool magic)
     {
+        const u64 header_size = magic ? 20u : 16u;
+        if (!metadata.data || metadata.size != metadata_size(magic))
+            return acul::make_op_error(ACUL_OP_INVALID_SIZE);
         ReadDescriptor descriptor;
         detail::Layout layout;
-        ACUL_TRY(detail::parse_header(header, magic, descriptor.file));
-        ACUL_TRY(detail::parse_footer(footer, file.offset, file.size, magic, descriptor.file, layout));
+        ACUL_TRY(detail::parse_header({metadata.data, header_size}, magic, descriptor.file));
+        ACUL_TRY(detail::parse_layout({metadata.data + header_size, detail::layout_header_size}, file.offset,
+                                      file.size, magic, layout));
+        const u64 embedded_table_size = layout.table_size;
+        if (embedded_table_size == 0u && table.size != 0u) layout.table_size = table.size;
         ACUL_TRY(detail::parse_table(table, descriptor.file, layout));
         descriptor.file_offset = file.offset;
-        descriptor.file_size = file.size;
+        descriptor.file_size = layout.file_size;
         descriptor.payload_offset = layout.payload_offset;
+        descriptor.payload_size = layout.payload_size;
+        descriptor.table_size = embedded_table_size;
+        descriptor.file.checksum = calculate_checksum(descriptor.file.sg_table);
         out = std::move(descriptor);
         return acul::make_op_success();
     }
@@ -53,15 +65,16 @@ namespace umbf::async
         return *this;
     }
 
-    acul::shared_ptr<Block> BlockIterator::read() const
+    acul::unique_ptr<Block> BlockIterator::read() const
     {
-        void *data = nullptr;
+        Block *data = nullptr;
         if (!_current || !_stream || !detail::read_block(*_stream, _current, _begin, _end, data)) return nullptr;
-        acul::shared_ptr<Block> block(static_cast<Block *>(data));
-        return block->signature() == _current.signature ? block : nullptr;
+        acul::unique_ptr<Block> block(data);
+        if (block->signature() != _current.signature) return nullptr;
+        return block;
     }
 
-    acul::shared_ptr<Block> get_block(const BlockIterator &iterator) { return iterator.read(); }
+    acul::unique_ptr<Block> get_block(const BlockIterator &iterator) { return iterator.read(); }
 
     FileRange BlockChunkDescriptor::range() const noexcept
     {
@@ -96,6 +109,8 @@ namespace umbf::async
         if (segment.signature == UMBF_SEGMENT_RAW)
         {
             _result = detail::validate_segment({_encoded.data(), _encoded.size()}, segment.block_count);
+            if (_result.success() && acul::crc32(0u, _encoded.data(), _encoded.size()) != segment.checksum)
+                _result = acul::make_op_error(ACUL_OP_CHECKSUM_ERROR);
             if (_result.success()) decoded = std::move(_encoded);
         }
         else _result = detail::decode_segment({_encoded.data(), _encoded.size()}, segment, decoded);
@@ -135,4 +150,4 @@ namespace umbf::async
         return BlockIterator(_decoded, segment.block_count, _first_block,
                              segment.signature == UMBF_SEGMENT_RAW ? range().offset : UINT64_MAX);
     }
-} // namespace umbf::async
+} // namespace umbf::range

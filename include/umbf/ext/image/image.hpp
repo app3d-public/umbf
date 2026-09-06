@@ -17,7 +17,6 @@ namespace umbf
             enum : u32
             {
                 image = 0x0A5B6E8F,
-                images_list = 0xB1E7C51A,
             };
         }
 
@@ -25,6 +24,7 @@ namespace umbf
         {
             image = 0x7684573F,
             image_atlas = 0xA3903A92,
+            images_list = 0xB1E7C51A,
         };
     } // namespace sign_block
 
@@ -72,6 +72,12 @@ namespace umbf
          */
         size_t size() const { return static_cast<size_t>(width) * height * format.bytes_per_channel * channels.size(); }
 
+        void release_pixels() noexcept
+        {
+            if (pixels) acul::release(pixels);
+            pixels = nullptr;
+        }
+
         u32 signature() const noexcept override { return sign_block::image; }
 
         /**
@@ -82,6 +88,13 @@ namespace umbf
          *
          * @return The signature of the block.
          */
+    };
+
+    struct ImageList final : Block
+    {
+        acul::vector<ResourceRange> images;
+
+        u32 signature() const noexcept override { return sign_block::images_list; }
     };
 
     /**
@@ -112,6 +125,7 @@ namespace umbf
     {
         extern UMBF_EXPORT const BlockStream image;
         extern UMBF_EXPORT const BlockStream image_atlas;
+        extern UMBF_EXPORT const BlockStream image_list;
         extern UMBF_EXPORT const SegmentCodec segment_image_codec;
     } // namespace registry
 
@@ -119,6 +133,7 @@ namespace umbf
     {
         resolver.block_streams[sign_block::image] = &registry::image;
         resolver.block_streams[sign_block::image_atlas] = &registry::image_atlas;
+        resolver.block_streams[sign_block::images_list] = &registry::image_list;
     }
 
     inline void insert_image_codecs(registry::HashResolver &resolver)

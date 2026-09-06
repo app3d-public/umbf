@@ -35,7 +35,7 @@ namespace umbf
             if (!data || available < detail::block_header_size) return false;
             acul::bin_stream stream(data, static_cast<u32>(detail::block_header_size));
             stream.read(signature).read(tag).read(size);
-            return signature != 0u;
+            return signature != 0u || (tag == 0u && size == 0u);
         }
 
         bool read_block_view(const SegmentBuffer &segment, u32 block_count, u32 requested, PayloadView &view,
@@ -121,7 +121,11 @@ namespace umbf
         void write_segment_table(acul::bin_stream &stream, const File &file)
         {
             for (const auto &segment : file.sg_table)
-                stream.write(segment.offset).write(segment.size).write(segment.block_count).write(segment.signature);
+                stream.write(segment.offset)
+                    .write(segment.size)
+                    .write(segment.block_count)
+                    .write(segment.signature)
+                    .write(segment.checksum);
         }
 
     } // namespace
@@ -135,6 +139,14 @@ namespace umbf
     static bool write_bytes(FILE *fd, const void *data, size_t size)
     {
         return size == 0u || (data && std::fwrite(data, 1u, size, fd) == size);
+    }
+
+    static bool write_layout(WriteDescriptor &file, u64 table_size, u64 payload_size, i64 restore)
+    {
+        if (!file.fd || acul::fs::fseek(file.fd, file.file_offset + sizeof(Header), SEEK_SET) != 0) return false;
+        acul::bin_stream layout;
+        layout.write(table_size).write(payload_size);
+        return write_bytes(file.fd, layout.data(), layout.size()) && acul::fs::fseek(file.fd, restore, SEEK_SET) == 0;
     }
 
     static bool finalize_segment(WriteDescriptor &file)
@@ -152,6 +164,7 @@ namespace umbf
         Segment descriptor;
         descriptor.signature = file.active_segment.signature;
         descriptor.block_count = file.active_segment.block_count;
+        descriptor.checksum = file.active_segment.checksum;
         descriptor.offset = file.active_segment_offset - file.payload_offset;
         if (descriptor.signature == UMBF_SEGMENT_RAW)
         {
@@ -169,8 +182,6 @@ namespace umbf
             if (!codec->encode(file.active_segment_data, descriptor.block_count, file.compression, encoded).success())
                 return false;
             descriptor.size = encoded.size();
-            file.file->checksum =
-                acul::crc32(file.file->checksum, file.active_segment_data.data(), file.active_segment_data.size());
             if (!write_bytes(fd, encoded.data(), encoded.size())) return false;
         }
         file.file->sg_table.push_back(descriptor);
@@ -191,7 +202,8 @@ namespace umbf
     }
 
     static acul::op_result initialize_write_descriptor(FILE *fd, const acul::path &path, const Header &header,
-                                                       WriteDescriptor &file, int compression, bool with_magic)
+                                                       WriteDescriptor &file, int compression, bool with_magic,
+                                                       bool external_table = false)
     {
         close_write_descriptor(file);
         file.fd = fd;
@@ -199,11 +211,13 @@ namespace umbf
         file.path = path;
         file.file = acul::make_shared<File>();
         static_cast<Header &>(*file.file) = header;
-        file.file->checksum = 0u;
         file.compression = compression;
         file.finalized = false;
+        file.external_table = external_table;
         acul::bin_stream stream;
         write_file_header(stream, *file.file, with_magic);
+        stream.write(external_table ? 0u : static_cast<u64>(UMBF_INVALID_SIZE))
+            .write(external_table ? 0u : static_cast<u64>(UMBF_INVALID_SIZE));
         if (!write_bytes(fd, stream.data(), stream.size()))
         {
             close_write_descriptor(file);
@@ -227,14 +241,56 @@ namespace umbf
         return initialize_write_descriptor(open_write_file(path.str(), true), path, header, file, compression, true);
     }
 
+    acul::op_result create_external_write_descriptor(const acul::path &path, const Header &header,
+                                                      WriteDescriptor &file, int compression)
+    {
+        close_write_descriptor(file);
+        if (!acul::fs::exists(path.str().c_str()))
+            return initialize_write_descriptor(open_write_file(path.str(), true), path, header, file, compression,
+                                               true, true);
+
+        ReadDescriptor existing;
+        ACUL_TRY(create_read_descriptor(path, existing));
+        if (!existing.file || existing.table_size != 0u || existing.file->vendor_sign != header.vendor_sign ||
+            existing.file->vendor_version != header.vendor_version || existing.file->spec_version != header.spec_version ||
+            existing.file->type_sign != header.type_sign)
+            return acul::make_op_error(ACUL_OP_READ_ERROR);
+        const u64 payload_size = existing.payload_size;
+        close_read_descriptor(existing);
+#ifdef _WIN32
+        const auto wide_path = acul::utf8_to_utf16(path.str());
+        FILE *fd = _wfopen(reinterpret_cast<const wchar_t *>(wide_path.c_str()), L"rb+");
+#else
+        FILE *fd = std::fopen(path.str().c_str(), "rb+");
+#endif
+        if (!fd) return acul::make_op_error(ACUL_OP_WRITE_ERROR);
+        file.fd = fd;
+        file.path = path;
+        file.file = acul::make_shared<File>();
+        static_cast<Header &>(*file.file) = header;
+        file.file_offset = sizeof(u32);
+        file.payload_offset = sizeof(u32) + sizeof(Header) + detail::layout_header_size;
+        file.payload_size = payload_size;
+        file.table_size = 0u;
+        file.file_size = sizeof(Header) + detail::layout_header_size + payload_size;
+        file.compression = compression;
+        file.external_table = true;
+        if (acul::fs::fseek(fd, file.payload_offset + payload_size, SEEK_SET) != 0)
+        {
+            close_write_descriptor(file);
+            return acul::make_op_error(ACUL_OP_SEEK_ERROR);
+        }
+        return acul::make_op_success();
+    }
+
     SegmentWriter *add_segment(WriteDescriptor &file, u32 signature)
     {
-        if (file.finalized || !finalize_segment(file)) return nullptr;
+        if (file.finalized || (file.external_table && file.has_active_segment) || !finalize_segment(file)) return nullptr;
         FILE *fd = file.fd;
         if (!fd) return nullptr;
         const i64 offset = acul::fs::ftell(fd);
         if (offset < 0) return nullptr;
-        file.active_segment = {signature, 0u};
+        file.active_segment = {signature, 0u, 0u};
         file.active_segment_offset = static_cast<u64>(offset);
         file.has_active_segment = true;
         return &file.active_segment;
@@ -242,7 +298,8 @@ namespace umbf
 
     u32 add_payload(WriteDescriptor &file, u32 signature, const void *data, u64 size, SegmentWriter *segment, u32 tag)
     {
-        if (!signature || (size != 0u && !data)) throw acul::runtime_error("Invalid UMBF payload");
+        if ((!signature && (tag != 0u || size != 0u || data)) || (size != 0u && !data))
+            throw acul::runtime_error("Invalid UMBF payload");
         if (!segment) segment = add_segment(file, file.default_segment_signature);
         if (!segment || segment != &file.active_segment || !file.has_active_segment)
             throw acul::runtime_error("Invalid UMBF segment writer");
@@ -255,13 +312,17 @@ namespace umbf
             if (!fd || !write_bytes(fd, header.data(), header.size()) ||
                 !write_bytes(fd, data, static_cast<size_t>(size)))
                 throw acul::runtime_error("Failed to write UMBF block");
-            file.file->checksum = acul::crc32(file.file->checksum, header.data(), header.size());
+            segment->checksum = acul::crc32(segment->checksum, header.data(), header.size());
             if (size != 0u)
-                file.file->checksum =
-                    acul::crc32(file.file->checksum, static_cast<const char *>(data), static_cast<size_t>(size));
+                segment->checksum =
+                    acul::crc32(segment->checksum, static_cast<const char *>(data), static_cast<size_t>(size));
         }
         else
         {
+            segment->checksum = acul::crc32(segment->checksum, header.data(), header.size());
+            if (size != 0u)
+                segment->checksum =
+                    acul::crc32(segment->checksum, static_cast<const char *>(data), static_cast<size_t>(size));
             file.active_segment_data.insert(file.active_segment_data.end(), header.begin(), header.end());
             if (size != 0u)
             {
@@ -274,7 +335,7 @@ namespace umbf
 
     u32 add_block(WriteDescriptor &file, Block *block, SegmentWriter *segment)
     {
-        if (!block) throw acul::runtime_error("Invalid UMBF block");
+        if (!block) return add_payload(file, 0u, nullptr, 0u, segment, 0u);
         const u32 signature = block->signature();
         assert(registry::resolver && "Registry is not initialized");
         const auto *block_stream = registry::resolver->get_block_stream(signature);
@@ -298,7 +359,7 @@ namespace umbf
         if (!fd || !nested_fd || !write_bytes(fd, header.data(), header.size()) ||
             acul::fs::fseek(nested_fd, nested.file_offset, SEEK_SET) != 0)
             throw acul::runtime_error("Failed to write nested UMBF header");
-        file.file->checksum = acul::crc32(file.file->checksum, header.data(), header.size());
+        segment->checksum = acul::crc32(segment->checksum, header.data(), header.size());
         char buffer[64 * 1024];
         u64 remaining = nested.file_size;
         while (remaining != 0u)
@@ -306,10 +367,28 @@ namespace umbf
             const size_t chunk = static_cast<size_t>(remaining < sizeof(buffer) ? remaining : sizeof(buffer));
             if (std::fread(buffer, 1u, chunk, nested_fd) != chunk || !write_bytes(fd, buffer, chunk))
                 throw acul::runtime_error("Failed to copy nested UMBF file");
-            file.file->checksum = acul::crc32(file.file->checksum, buffer, chunk);
+            segment->checksum = acul::crc32(segment->checksum, buffer, chunk);
             remaining -= chunk;
         }
         return segment->block_count++;
+    }
+
+    acul::op_result commit_segment(WriteDescriptor &file, Segment &segment)
+    {
+        if (!file.external_table || file.finalized || !file.has_active_segment)
+            return acul::make_op_error(ACUL_OP_INVALID_SIZE);
+        if (!finalize_segment(file) || file.file->sg_table.empty())
+            return acul::make_op_error(ACUL_OP_WRITE_ERROR);
+        segment = file.file->sg_table.back();
+        file.file->sg_table.clear();
+        const i64 end = acul::fs::ftell(file.fd);
+        if (end < 0 || static_cast<u64>(end) < file.payload_offset)
+            return acul::make_op_error(ACUL_OP_SEEK_ERROR);
+        file.payload_size = static_cast<u64>(end) - file.payload_offset;
+        file.file_size = sizeof(Header) + detail::layout_header_size + file.payload_size;
+        if (!write_layout(file, 0u, file.payload_size, end) || std::fflush(file.fd) != 0)
+            return acul::make_op_error(ACUL_OP_WRITE_ERROR);
+        return acul::make_op_success();
     }
 
     bool finalize_file(WriteDescriptor &file)
@@ -317,18 +396,33 @@ namespace umbf
         FILE *fd = file.fd;
         if (!fd || !file.file) return false;
         if (file.finalized) return true;
+        if (file.external_table && file.has_active_segment) return false;
         if (!finalize_segment(file)) return false;
+        if (file.external_table)
+        {
+            const i64 end = acul::fs::ftell(fd);
+            if (end < 0 || static_cast<u64>(end) < file.payload_offset) return false;
+            file.payload_size = static_cast<u64>(end) - file.payload_offset;
+            file.table_size = 0u;
+            file.file_size = sizeof(Header) + detail::layout_header_size + file.payload_size;
+            file.file->sg_table.clear();
+            if (!write_layout(file, 0u, file.payload_size, end) || std::fflush(fd) != 0) return false;
+            file.finalized = true;
+            return true;
+        }
         const i64 table_position = acul::fs::ftell(fd);
-        if (table_position < 0 || static_cast<u64>(table_position) < file.payload_offset ||
-            file.file->sg_table.size() > UINT32_MAX)
+        if (table_position < 0 || static_cast<u64>(table_position) < file.payload_offset)
             return false;
         acul::bin_stream table;
         write_segment_table(table, *file.file);
-        table.write(static_cast<u64>(table_position) - file.payload_offset).write(file.file->checksum);
         if (!write_bytes(fd, table.data(), table.size())) return false;
         const i64 end = acul::fs::ftell(fd);
         if (end < 0) return false;
         file.file_size = static_cast<u64>(end) - file.file_offset;
+        file.payload_size = static_cast<u64>(table_position) - file.payload_offset;
+        file.table_size = table.size();
+        file.file->checksum = calculate_checksum(file.file->sg_table);
+        if (!write_layout(file, file.table_size, file.payload_size, end)) return false;
         if (std::fflush(fd) != 0) return false;
         file.finalized = true;
         return true;
@@ -369,6 +463,7 @@ namespace umbf
         view.default_segment_signature = UMBF_SEGMENT_RAW;
         view.compression = 5;
         view.finalized = false;
+        view.external_table = false;
         view.has_active_segment = false;
         view.active_segment_offset = 0u;
         view.active_segment = {};
@@ -385,6 +480,7 @@ namespace umbf
         swap(default_segment_signature, other.default_segment_signature);
         swap(compression, other.compression);
         swap(finalized, other.finalized);
+        swap(external_table, other.external_table);
         swap(has_active_segment, other.has_active_segment);
         swap(active_segment_offset, other.active_segment_offset);
         swap(active_segment, other.active_segment);
@@ -407,7 +503,9 @@ namespace umbf
                                                      u64 offset, u64 size, bool magic, ReadDescriptor &view)
     {
         close_read_descriptor(view);
-        if (!mapping || offset > mapping->size() || size > mapping->size() - offset || size < (magic ? 32u : 28u))
+        const u64 header_size = magic ? 20u : 16u;
+        if (!mapping || offset > mapping->size() || size > mapping->size() - offset ||
+            size < header_size + detail::layout_header_size)
             return acul::make_op_error(ACUL_OP_INVALID_SIZE);
         ReadDescriptor parsed;
         parsed.mapping = std::move(mapping);
@@ -415,13 +513,16 @@ namespace umbf
         parsed.file = acul::make_shared<File>();
         const char *data = parsed.mapping->data();
         detail::Layout layout;
-        ACUL_TRY(detail::parse_header({data + offset, magic ? 20u : 16u}, magic, *parsed.file));
-        ACUL_TRY(detail::parse_footer({data + offset + size - detail::footer_size, detail::footer_size}, offset, size,
-                                      magic, *parsed.file, layout));
+        ACUL_TRY(detail::parse_header({data + offset, header_size}, magic, *parsed.file));
+        ACUL_TRY(detail::parse_layout({data + offset + header_size, detail::layout_header_size}, offset, size, magic,
+                                      layout));
         ACUL_TRY(detail::parse_table({data + layout.table_offset, layout.table_size}, *parsed.file, layout));
         parsed.file_offset = offset;
-        parsed.file_size = size;
+        parsed.file_size = layout.file_size;
         parsed.payload_offset = layout.payload_offset;
+        parsed.payload_size = layout.payload_size;
+        parsed.table_size = layout.table_size;
+        parsed.file->checksum = calculate_checksum(parsed.file->sg_table);
         view = std::move(parsed);
         return acul::make_op_success();
     }
@@ -465,13 +566,49 @@ namespace umbf
         dst.clear();
         if (!view.file || !view.mapping || segment_index >= view.file->sg_table.size())
             return acul::make_op_error(ACUL_OP_INVALID_SIZE);
-        const auto &segment = view.file->sg_table[segment_index];
+        return read_segment(view, view.file->sg_table[segment_index], dst);
+    }
+
+    acul::op_result set_segment_table(ReadDescriptor &view, const acul::vector<Segment> &segments)
+    {
+        if (!view.file || !view.mapping) return acul::make_op_error(ACUL_OP_NULLPTR);
+        acul::bin_stream bytes;
+        for (const auto &segment : segments)
+            bytes.write(segment.offset)
+                .write(segment.size)
+                .write(segment.block_count)
+                .write(segment.signature)
+                .write(segment.checksum);
+        detail::Layout layout{view.file_offset, view.file_size, view.payload_offset, view.payload_size, 0u,
+                              static_cast<u64>(bytes.size())};
+        File parsed = *view.file;
+        ACUL_TRY(detail::parse_table({bytes.data(), bytes.size()}, parsed, layout));
+        view.file->sg_table = std::move(parsed.sg_table);
+        view.file->checksum = calculate_checksum(view.file->sg_table);
+        return acul::make_op_success();
+    }
+
+    acul::op_result read_segment(const ReadDescriptor &view, const Segment &segment, acul::vector<char> &dst)
+    {
+        dst.clear();
+        if (!view.file || !view.mapping || segment.offset > view.payload_size ||
+            segment.size > view.payload_size - segment.offset)
+            return acul::make_op_error(ACUL_OP_INVALID_SIZE);
         const u64 size = view.mapping->size();
         if (view.payload_offset > size || segment.offset > size - view.payload_offset ||
             segment.size > size - view.payload_offset - segment.offset)
             return acul::make_op_error(ACUL_OP_INVALID_SIZE);
         const ByteView bytes{view.mapping->data() + view.payload_offset + segment.offset, segment.size};
         return detail::decode_segment(bytes, segment, dst);
+    }
+
+    u32 calculate_checksum(const acul::vector<Segment> &segments) noexcept
+    {
+        u32 checksum = 0u;
+        for (const auto &segment : segments)
+            checksum = acul::crc32(checksum, reinterpret_cast<const char *>(&segment.checksum),
+                                   sizeof(segment.checksum));
+        return checksum;
     }
 
     bool get_block_view(const SegmentBuffer &segment, u32 block_count, u32 block_index, PayloadView &block) noexcept
@@ -647,18 +784,18 @@ namespace umbf
         return _source == other._source && _segment_index == other._segment_index && _block_index == other._block_index;
     }
 
-    bool BlockIterator::read(u32 expected_signature, void *&block) const
+    bool BlockIterator::read(u32 expected_signature, Block *&block) const
     {
         block = nullptr;
         return _stream && _current.signature == expected_signature &&
                detail::read_block(*_stream, _current, _payload_begin, _payload_end, block);
     }
 
-    acul::shared_ptr<Block> BlockIterator::read() const
+    acul::unique_ptr<Block> BlockIterator::read() const
     {
-        void *data = nullptr;
+        Block *data = nullptr;
         if (!read(_current.signature, data)) return nullptr;
-        auto block = acul::shared_ptr<Block>(static_cast<Block *>(data));
+        auto block = acul::unique_ptr<Block>(data);
         if (block->signature() != _current.signature) return nullptr;
         return block;
     }
@@ -667,7 +804,7 @@ namespace umbf
 
     BlockIterator ReadDescriptor::end() const { return {}; }
 
-    acul::shared_ptr<Block> get_block(const BlockIterator &iterator) { return iterator.read(); }
+    acul::unique_ptr<Block> get_block(const BlockIterator &iterator) { return iterator.read(); }
 
     Library::Node *Library::get_node(const acul::path &path)
     {
@@ -680,7 +817,7 @@ namespace umbf
             if (child_it != current_node->children.end()) current_node = &(*child_it);
             else
             {
-                UMBF_LOG_ERROR("Path not found in the umbf library: %s", path.str().c_str());
+                UMBF_LOG_ERROR("path not found in the umbf library: %s", path.str().c_str());
                 return nullptr;
             }
         }
@@ -695,6 +832,7 @@ namespace umbf
     void Registry::init(const acul::path &path)
     {
         acul::vector<acul::string> files;
+        UMBF_LOG_INFO("initializing registry: %s", path.str().c_str());
         auto lr = acul::fs::list_files(path, files);
         if (!lr.success())
             throw acul::runtime_error(
@@ -705,18 +843,18 @@ namespace umbf
             {
                 try
                 {
-                    UMBF_LOG_INFO("Loading umbf library: %s", entry.c_str());
+                    UMBF_LOG_INFO("loading umbf library: %s", entry.c_str());
                     ReadDescriptor asset;
                     auto res = create_read_descriptor(entry, asset);
                     if (!res.success())
                     {
-                        UMBF_LOG_WARN("Failed to load umbf library %s. Error code: 0x%16" PRIx64, entry.c_str(),
+                        UMBF_LOG_WARN("failed to load umbf library %s. Error code: 0x%16" PRIx64, entry.c_str(),
                                       static_cast<u64>(res));
                         continue;
                     }
                     if (asset.file->type_sign != sign_block::format::library)
                     {
-                        UMBF_LOG_WARN("Failed to load umbf library %s. Wrong file type: 0x%x", entry.c_str(),
+                        UMBF_LOG_WARN("failed to load umbf library %s. Wrong file type: 0x%x", entry.c_str(),
                                       asset.file->type_sign);
                         close_read_descriptor(asset);
                         continue;
@@ -727,12 +865,12 @@ namespace umbf
                         if (block->signature != sign_block::library) continue;
                         auto value = get_block(block);
                         if (value && value->signature() == sign_block::library)
-                            library = acul::static_pointer_cast<Library>(value);
+                            library = acul::make_shared<Library>(std::move(*static_cast<Library *>(value.get())));
                         break;
                     }
                     if (!library)
                     {
-                        UMBF_LOG_WARN("Failed to load umbf library %s. Library metadata is invalid", entry.c_str());
+                        UMBF_LOG_WARN("failed to load umbf library %s. Library metadata is invalid", entry.c_str());
                         close_read_descriptor(asset);
                         continue;
                     }
@@ -741,7 +879,7 @@ namespace umbf
                 }
                 catch (const std::exception &e)
                 {
-                    UMBF_LOG_WARN("Failed to load umbf library. Error: %s", e.what());
+                    UMBF_LOG_WARN("failed to load umbf library. Error: %s", e.what());
                     continue;
                 }
             }
@@ -759,7 +897,7 @@ namespace umbf
         const auto *value_stream = registry::resolver->get_block_stream(signature);
         if (!value_stream)
         {
-            UMBF_LOG_WARN("No writer is registered for UMBF value 0x%08x", signature);
+            UMBF_LOG_WARN("no writer is registered for UMBF value 0x%08x", signature);
             stream.write(0ULL);
             return false;
         }
@@ -770,7 +908,7 @@ namespace umbf
         return true;
     }
 
-    bool read_block_from_stream(acul::bin_stream &stream, acul::shared_ptr<Block> &value)
+    bool read_block_from_stream(acul::bin_stream &stream, acul::unique_ptr<Block> &value)
     {
         value = nullptr;
         if (stream.size() - stream.pos() < sizeof(u64)) return false;
@@ -790,7 +928,7 @@ namespace umbf
             try
             {
                 ScopedStreamSize scope(stream, block_end);
-                value = acul::shared_ptr<Block>(static_cast<Block *>(value_stream->read(stream)));
+                value = acul::unique_ptr<Block>(value_stream->read(stream));
                 if (value && value->signature() != signature) value = nullptr;
                 if (value) value->tag = tag;
             }
@@ -811,7 +949,7 @@ namespace umbf
 
         namespace
         {
-            void write_target(acul::bin_stream &stream, void *block)
+            void write_target(acul::bin_stream &stream, umbf::Block *block)
             {
                 auto *target = static_cast<Target *>(block);
                 stream.write(target->header.vendor_sign)
@@ -822,7 +960,7 @@ namespace umbf
                     .write(target->checksum);
             }
 
-            void *read_target(acul::bin_stream &stream)
+            umbf::Block *read_target(acul::bin_stream &stream)
             {
                 auto *target = acul::alloc<Target>();
                 stream.read(target->header.vendor_sign)
@@ -834,12 +972,12 @@ namespace umbf
                 return target;
             }
 
-            void write_library(acul::bin_stream &stream, void *block)
+            void write_library(acul::bin_stream &stream, umbf::Block *block)
             {
                 stream.write(static_cast<Library *>(block)->file_tree);
             }
 
-            void *read_library(acul::bin_stream &stream)
+            umbf::Block *read_library(acul::bin_stream &stream)
             {
                 auto *library = acul::alloc<Library>();
                 stream.read(library->file_tree);

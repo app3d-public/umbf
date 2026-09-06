@@ -2,7 +2,7 @@
 #include <memory>
 #include "umbf.hpp"
 
-namespace umbf::async
+namespace umbf::range
 {
     struct FileRange
     {
@@ -13,14 +13,19 @@ namespace umbf::async
     struct ReadDescriptor
     {
         File file;
-        u64 file_offset = 0, file_size = 0, payload_offset = 0;
+        u64 file_offset = 0, file_size = 0, payload_offset = 0, payload_size = 0, table_size = 0;
     };
 
-    // Bootstrap: the caller supplies the footer, then obtains the table range.
-    UMBF_EXPORT acul::op_result get_segment_table_range(ByteView footer, FileRange file, FileRange &table,
+    inline constexpr u64 metadata_size(bool magic = true) noexcept
+    {
+        return (magic ? sizeof(u32) : 0u) + sizeof(Header) + sizeof(u64) * 2u;
+    }
+
+    // Bootstrap: metadata is the contiguous magic/header/layout prefix.
+    UMBF_EXPORT acul::op_result get_segment_table_range(ByteView metadata, FileRange file, FileRange &table,
                                                         bool magic = true);
     // All metadata is already available. The caller owns scheduling and transport.
-    UMBF_EXPORT acul::op_result create_read_descriptor(ByteView header, ByteView footer, ByteView table, FileRange file,
+    UMBF_EXPORT acul::op_result create_read_descriptor(ByteView metadata, ByteView table, FileRange file,
                                                        ReadDescriptor &out, bool magic = true);
 
     // Iterates only decoded bytes, never fetches data. Copies retain segment storage.
@@ -63,9 +68,9 @@ namespace umbf::async
             if (!_current || !other._current) return !_current && !other._current;
             return _stream == other._stream && _begin == other._begin;
         }
-        UMBF_EXPORT acul::shared_ptr<Block> read() const;
+        UMBF_EXPORT acul::unique_ptr<Block> read() const;
     };
-    UMBF_EXPORT acul::shared_ptr<Block> get_block(const BlockIterator &iterator);
+    UMBF_EXPORT acul::unique_ptr<Block> get_block(const BlockIterator &iterator);
 
     // Push reader. Keep descriptor alive and unchanged until this cursor is released.
     // Deliver chunks sequentially from any transport, on one execution context.
@@ -97,4 +102,4 @@ namespace umbf::async
         UMBF_EXPORT BlockIterator begin() const;
         BlockIterator end() const { return {}; }
     };
-} // namespace umbf::async
+} // namespace umbf::range

@@ -12,7 +12,6 @@ namespace umbf
             enum : u32
             {
                 material = 0x7A76D019,
-                materials_list = 0x7D70D2A8,
             };
         }
 
@@ -21,6 +20,7 @@ namespace umbf
             material = 0xA8D0C51E,
             material_range = 0xC441E54D,
             material_info = 0x6112A229,
+            materials_list = 0x7D70D2A8,
         };
     } // namespace sign_block
 
@@ -62,11 +62,19 @@ namespace umbf
         u32 signature() const noexcept override { return sign_block::material_range; }
     };
 
+    struct MaterialList final : Block
+    {
+        acul::vector<ResourceRange> materials;
+
+        u32 signature() const noexcept override { return sign_block::materials_list; }
+    };
+
     namespace registry
     {
         extern UMBF_EXPORT const BlockStream material;
         extern UMBF_EXPORT const BlockStream material_info;
         extern UMBF_EXPORT const BlockStream material_range;
+        extern UMBF_EXPORT const BlockStream material_list;
     } // namespace registry
 
     UMBF_EXPORT void insert_material_streams(registry::HashResolver &resolver);

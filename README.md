@@ -3,8 +3,8 @@
 **UMBF** is an extensible binary container format for storing arbitrary typed binary data.
 
 ## File Layout
-| Magic | Header | Payload | Segment Table | Payload Size | CRC32C |
-|-------|--------|---------|---------------|--------------|--------|
+| Magic | Header | Segment Table Size | Payload Size | Payload | Segment Table |
+|-------|--------|--------------------|--------------|---------|---------------|
 
 ### Magic
 
@@ -21,30 +21,16 @@
 | 4 bytes | `spec_version`   | UMBF specification version |
 | 4 bytes | `type_sign`      | File format signature      |
 
-### File footer
-
-The last 12 bytes of each file contain:
-
-| Size    | Field          | Description |
-| ------: | -------------- | ----------- |
-| 8 bytes | `payload_size` | Stored payload size, excluding header, segment table and footer |
-| 4 bytes | `checksum`     | CRC32C of decoded payload |
-
-#### Checksum
-
-Size: 4 bytes\
-Algorithm: CRC32C (Castagnoli)
-
-The checksum is stored in the footer and is calculated incrementally over decoded payload bytes, including block headers, but excluding the file header, segment table and footer.
 
 ### Segment Table
 
-The Segment Table is a contiguous array of 24-byte segment descriptors immediately before the file footer.
-No count or length prefix is stored. Its byte size is the file size minus Magic (if present), header, stored payload and the 12-byte footer; the segment count is this size divided by 24. A table size not divisible by 24 is invalid
+The Segment Table is a contiguous array of segment descriptors.
+
+A standalone UMBF file stores its table internally and then the segment table size must be nonzero. If the table size is zero, the file contains only an append-only payload or segment table is provided externally.
 
 #### Segment Descriptor
 
-Each segment descriptor defines the location, encoded size, block count, and encoding of a segment in the payload.
+Each segment descriptor defines the location, encoded size, block count, encoding, and decoded checksum of a segment in the payload.
 
 | Size    | Field         | Description                                             |
 | ------: | ------------- | ------------------------------------------------------- |
@@ -52,8 +38,9 @@ Each segment descriptor defines the location, encoded size, block count, and enc
 | 8 bytes | `size`        | Encoded segment size                                    |
 | 4 bytes | `block_count` | Number of blocks in the decoded segment                 |
 | 4 bytes | `signature`   | Segment encoding signature                              |
+| 4 bytes | `checksum`    | CRC32C of the decoded segment bytes                     |
 
-A segment is an independently encoded region of the payload. After decoding, it contains `block_count` serialized blocks.
+Segment checksums allow a reader to validate only the segment it requested.
 
 ### Block Structure
 
@@ -68,7 +55,8 @@ Each block is encoded as:
 
 ## Data Flow
 
-The writer uses file I/O, not a writable mapping. It writes the header once, appends segments, then appends the segment table and footer during finalization.
+The writer uses file I/O, not a writable mapping. A standalone writer initially writes the header followed by invalid table and payload sizes, appends encoded segments, writes the table at the end, and then replaces both size fields with
+their actual values.
 
 ```text
 Segment Descriptor
@@ -83,7 +71,7 @@ Encoded Segment
 Decoded Segment Bytes
         │
         ▼
-[signature][tag][size][payload]
+Block Descriptor
         │
         ▼
     Block Stream
@@ -101,7 +89,7 @@ Deserialized Block
 | 0xBC037D   | UMBF vendor ID    |
 
 
-### Format Signatures (32-bit)
+### Format Signatures
 
 | Signature  | Format Type    | Description          |
 | ---------- | -------------- | -------------------- |
@@ -109,10 +97,6 @@ Deserialized Block
 | 0x0A5B6E8F | image          | Image asset          |
 | 0xB5F1EEB1 | scene          | Scene description    |
 | 0x7A76D019 | material       | Material definition  |
-| 0xB1E7C51A | images_list    | Image/target list    |
-| 0x7D70D2A8 | materials_list | Material/target list |
-| 0x7EA13B42 | scene_object   | 3D scene object file |
-| 0xB7A3EE80 | objects_list   | Scene object list    |
 | 0xC7DCA0DA | target         | Target definition    |
 | 0x3500BDEA | library        | Library of assets    |
 | 0xA031000C | raw            | Raw binary data      |
@@ -125,7 +109,7 @@ Deserialized Block
 | 0x4454535A | Zstd              |
 | 0x474D495A | Image compression |
 
-### Block Type Signatures (32-bit)
+### Block Type Signatures
 
 | Signature  | Block Type     | Description                |
 |------------|----------------|----------------------------|

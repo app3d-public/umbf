@@ -10,7 +10,6 @@
 #include <acul/string/utils.hpp>
 #include <amal/bin_stream.hpp>
 #include <amal/rect.hpp>
-#include <iterator>
 #include <umbf/symbol_export.h>
 
 #define UMBF_MAGIC     0xCA9FB393
@@ -19,6 +18,7 @@
 #define UMBF_SEGMENT_RAW              0u
 #define UMBF_SEGMENT_COMPRESSED       0x4454535Au
 #define UMBF_SEGMENT_COMPRESSED_IMAGE 0x474D495Au
+#define UMBF_INVALID_SIZE              UINT64_MAX
 
 namespace umbf
 {
@@ -31,9 +31,10 @@ namespace umbf
         u64 size = 0;
         u32 block_count = 0;
         u32 signature = UMBF_SEGMENT_RAW;
+        u32 checksum = 0;
     };
 
-    // Borrowed bytes. Lifetime is controlled by the mapping or async result owner.
+    // Borrowed bytes. Lifetime is controlled by the mapping or range delivery owner.
     struct ByteView
     {
         const char *data = nullptr;
@@ -47,7 +48,7 @@ namespace umbf
         const char *data = nullptr;
         u64 size = 0;
 
-        explicit operator bool() const noexcept { return signature != 0u; }
+        explicit operator bool() const noexcept { return data != nullptr; }
     };
 
     using SegmentBuffer = acul::vector<char>;
@@ -67,6 +68,18 @@ namespace umbf
         u32 type_sign = 0;
     };
 
+    struct BlockRange
+    {
+        u64 first_block = 0u;
+        u32 block_count = 0u;
+    };
+
+    struct ResourceRange
+    {
+        Header header;
+        BlockRange blocks;
+    };
+
     /**
      * @brief Represents a generic asset in the system.
      *
@@ -75,13 +88,14 @@ namespace umbf
     struct File : Header
     {
         acul::vector<Segment> sg_table;
-        u32 checksum = 0; // CRC32C of decoded payload, stored in the file footer.
+        u32 checksum = 0; // Runtime resource checksum folded from the ordered segment checksums.
     };
 
     struct SegmentWriter
     {
         u32 signature = UMBF_SEGMENT_RAW;
         u32 block_count = 0u;
+        u32 checksum = 0u;
     };
 
     namespace sign_block
@@ -164,6 +178,8 @@ namespace umbf
         u64 file_offset = 0;
         u64 file_size = 0;
         u64 payload_offset = 0;
+        u64 payload_size = 0;
+        u64 table_size = 0;
     };
 
     struct ReadDescriptor : FileDescriptorBase
@@ -187,6 +203,7 @@ namespace umbf
         u32 default_segment_signature = UMBF_SEGMENT_RAW;
         int compression = 5;
         bool finalized = false;
+        bool external_table = false;
         bool has_active_segment = false;
         u64 active_segment_offset = 0u;
         SegmentWriter active_segment;
@@ -200,10 +217,13 @@ namespace umbf
                                                         int compression = 5);
     UMBF_EXPORT acul::op_result create_write_descriptor(const acul::path &path, const Header &header,
                                                         WriteDescriptor &descriptor, int compression = 5);
+    UMBF_EXPORT acul::op_result create_external_write_descriptor(const acul::path &path, const Header &header,
+                                                                 WriteDescriptor &descriptor, int compression = 5);
     UMBF_EXPORT SegmentWriter *add_segment(WriteDescriptor &file, u32 signature = UMBF_SEGMENT_RAW);
     UMBF_EXPORT u32 add_payload(WriteDescriptor &file, u32 signature, const void *data, u64 size,
                                 SegmentWriter *segment = nullptr, u32 tag = 0u);
     UMBF_EXPORT u32 add_file(WriteDescriptor &file, WriteDescriptor &nested, SegmentWriter *segment = nullptr);
+    UMBF_EXPORT acul::op_result commit_segment(WriteDescriptor &descriptor, Segment &segment);
     UMBF_EXPORT bool finalize_file(WriteDescriptor &descriptor);
     UMBF_EXPORT bool save_file(WriteDescriptor &descriptor, const acul::string &path);
 
@@ -237,8 +257,8 @@ namespace umbf
         bool failed() const noexcept { return !_result.success(); }
         const acul::op_result &result() const noexcept { return _result; }
 
-        UMBF_EXPORT bool read(u32 expected_signature, void *&block) const;
-        UMBF_EXPORT acul::shared_ptr<Block> read() const;
+        UMBF_EXPORT bool read(u32 expected_signature, Block *&block) const;
+        UMBF_EXPORT acul::unique_ptr<Block> read() const;
 
     private:
         friend UMBF_EXPORT acul::op_result create_read_descriptor(const ReadDescriptor &, const BlockIterator &,
@@ -259,8 +279,13 @@ namespace umbf
     };
 
     UMBF_EXPORT acul::op_result create_read_descriptor(const acul::path &path, ReadDescriptor &descriptor);
+    UMBF_EXPORT acul::op_result set_segment_table(ReadDescriptor &descriptor,
+                                                  const acul::vector<Segment> &segments);
+    UMBF_EXPORT acul::op_result read_segment(const ReadDescriptor &descriptor, const Segment &segment,
+                                             acul::vector<char> &dst);
     UMBF_EXPORT acul::op_result read_segment(const ReadDescriptor &descriptor, u32 segment_index,
                                              acul::vector<char> &dst);
+    UMBF_EXPORT u32 calculate_checksum(const acul::vector<Segment> &segments) noexcept;
     UMBF_EXPORT bool get_block_view(const SegmentBuffer &segment, u32 block_count, u32 block_index,
                                     PayloadView &block) noexcept;
     UMBF_EXPORT acul::op_result read_block(const ReadDescriptor &descriptor, u32 segment_index, u32 block_index,
@@ -269,7 +294,7 @@ namespace umbf
                                            acul::vector<char> &segment_data, PayloadView &block);
     UMBF_EXPORT void close_read_descriptor(ReadDescriptor &descriptor) noexcept;
     UMBF_EXPORT void close_write_descriptor(WriteDescriptor &descriptor) noexcept;
-    UMBF_EXPORT acul::shared_ptr<Block> get_block(const BlockIterator &iterator);
+    UMBF_EXPORT acul::unique_ptr<Block> get_block(const BlockIterator &iterator);
 
     /**
      * Class responsible for managing asset libraries.
@@ -321,8 +346,8 @@ namespace umbf
     {
         struct BlockStream
         {
-            void *(*read)(acul::bin_stream &stream);
-            void (*write)(acul::bin_stream &stream, void *block);
+            Block *(*read)(acul::bin_stream &stream);
+            void (*write)(acul::bin_stream &stream, Block *block);
         };
 
         struct SegmentCodec
@@ -376,7 +401,7 @@ namespace umbf
     }
 
     UMBF_EXPORT bool write_block_to_stream(acul::bin_stream &stream, const Block &block);
-    UMBF_EXPORT bool read_block_from_stream(acul::bin_stream &stream, acul::shared_ptr<Block> &block);
+    UMBF_EXPORT bool read_block_from_stream(acul::bin_stream &stream, acul::unique_ptr<Block> &block);
 
     inline u32 add_raw_block(WriteDescriptor &file, const void *data, u64 size, SegmentWriter *segment = nullptr,
                              u32 tag = 0u)
@@ -389,6 +414,26 @@ namespace umbf
 
 namespace acul
 {
+    template <>
+    inline bin_stream &bin_stream::write(const umbf::Segment &segment)
+    {
+        return write(segment.offset)
+            .write(segment.size)
+            .write(segment.block_count)
+            .write(segment.signature)
+            .write(segment.checksum);
+    }
+
+    template <>
+    inline bin_stream &bin_stream::read(umbf::Segment &segment)
+    {
+        return read(segment.offset)
+            .read(segment.size)
+            .read(segment.block_count)
+            .read(segment.signature)
+            .read(segment.checksum);
+    }
+
     template <>
     bin_stream &bin_stream::write(const umbf::Library::Node &node);
 

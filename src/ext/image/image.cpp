@@ -24,7 +24,7 @@ namespace umbf::registry
             stream.write(image->format.bytes_per_channel).write(image->format.type);
         }
 
-        void write_image(acul::bin_stream &stream, void *block)
+        void write_image(acul::bin_stream &stream, umbf::Block *block)
         {
             auto *image = static_cast<Image2D *>(block);
             const u64 size = pixel_data_size(*image);
@@ -42,7 +42,7 @@ namespace umbf::registry
             stream.read(image->format.bytes_per_channel).read(image->format.type);
         }
 
-        void *read_image(acul::bin_stream &stream)
+        umbf::Block *read_image(acul::bin_stream &stream)
         {
             auto *image = acul::alloc<Image2D>();
             try
@@ -53,20 +53,21 @@ namespace umbf::registry
                     throw acul::runtime_error("Truncated image pixels");
                 if (size)
                 {
-                    image->pixels = acul::alloc_n<char>(size);
-                    stream.read(static_cast<char *>(image->pixels), size);
+                    image->pixels = acul::alloc_n<char>(static_cast<size_t>(size));
+                    if (!image->pixels) throw acul::runtime_error("Failed to allocate image pixels");
+                    stream.read(static_cast<char *>(image->pixels), static_cast<size_t>(size));
                 }
                 return image;
             }
             catch (...)
             {
-                acul::release(image->pixels);
+                image->release_pixels();
                 acul::release(image);
                 throw;
             }
         }
 
-        void write_image_atlas(acul::bin_stream &stream, void *block)
+        void write_image_atlas(acul::bin_stream &stream, umbf::Block *block)
         {
             auto *atlas = static_cast<Atlas *>(block);
             stream.write(atlas->padding).write(static_cast<u16>(atlas->pack_data.size()));
@@ -74,7 +75,7 @@ namespace umbf::registry
                 stream.write(rect.size.x).write(rect.size.y).write(rect.offset.x).write(rect.offset.y);
         }
 
-        void *read_image_atlas(acul::bin_stream &stream)
+        umbf::Block *read_image_atlas(acul::bin_stream &stream)
         {
             auto *atlas = acul::alloc<Atlas>();
             u16 count;
@@ -83,6 +84,36 @@ namespace umbf::registry
             for (auto &rect : atlas->pack_data)
                 stream.read(rect.size.x).read(rect.size.y).read(rect.offset.x).read(rect.offset.y);
             return atlas;
+        }
+
+        void write_image_list(acul::bin_stream &stream, umbf::Block *block)
+        {
+            const auto &images = static_cast<ImageList *>(block)->images;
+            if (images.size() > UINT32_MAX) throw acul::runtime_error("Too many images");
+            stream.write(static_cast<u32>(images.size()));
+            for (const auto &entry : images)
+                stream.write(entry.header.vendor_sign)
+                    .write(entry.header.vendor_version)
+                    .write(entry.header.spec_version)
+                    .write(entry.header.type_sign)
+                    .write(entry.blocks.first_block)
+                    .write(entry.blocks.block_count);
+        }
+
+        umbf::Block *read_image_list(acul::bin_stream &stream)
+        {
+            auto *list = acul::alloc<ImageList>();
+            u32 count = 0u;
+            stream.read(count);
+            list->images.resize(count);
+            for (auto &entry : list->images)
+                stream.read(entry.header.vendor_sign)
+                    .read(entry.header.vendor_version)
+                    .read(entry.header.spec_version)
+                    .read(entry.header.type_sign)
+                    .read(entry.blocks.first_block)
+                    .read(entry.blocks.block_count);
+            return list;
         }
 
         u8 paeth_predictor(u8 left, u8 up, u8 upper_left)
@@ -421,5 +452,6 @@ namespace umbf::registry
 
     const BlockStream image{read_image, write_image};
     const BlockStream image_atlas{read_image_atlas, write_image_atlas};
+    const BlockStream image_list{read_image_list, write_image_list};
     const SegmentCodec segment_image_codec{encode_compressed_image_segment, decode_compressed_image_segment};
 } // namespace umbf::registry
