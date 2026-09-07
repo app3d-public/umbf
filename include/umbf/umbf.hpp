@@ -60,6 +60,32 @@ namespace umbf
         virtual u32 signature() const noexcept = 0;
     };
 
+    using BlockList = acul::vector<acul::unique_ptr<Block>>;
+
+    inline const Block *find_block(const BlockList &blocks, u32 signature) noexcept
+    {
+        for (const auto &block : blocks)
+            if (block && block->signature() == signature) return block.get();
+        return nullptr;
+    }
+
+    inline Block *find_block(BlockList &blocks, u32 signature) noexcept
+    {
+        return const_cast<Block *>(find_block(static_cast<const BlockList &>(blocks), signature));
+    }
+
+    inline const Block *find_block(const BlockList &blocks, u32 signature, u32 tag) noexcept
+    {
+        for (const auto &block : blocks)
+            if (block && block->signature() == signature && block->tag == tag) return block.get();
+        return nullptr;
+    }
+
+    inline Block *find_block(BlockList &blocks, u32 signature, u32 tag) noexcept
+    {
+        return const_cast<Block *>(find_block(static_cast<const BlockList &>(blocks), signature, tag));
+    }
+
     struct Header
     {
         u32 vendor_sign = 0;

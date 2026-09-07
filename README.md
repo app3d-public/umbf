@@ -165,7 +165,6 @@ The following dependencies are included as git submodules and must be checked ou
 - [acbt](https://repos.wusikijeronii.me/app3d/acbt)
 - [acul](https://repos.wusikijeronii.me/app3d/acul)
 - [amal](https://repos.wusikijeronii.me/app3d/amal)
-- [rectpack2D](https://github.com/TeamHypersomnia/rectpack2D)
 
 ## License
 This project is licensed under the [MIT License](LICENSE).
