@@ -89,6 +89,7 @@ namespace umbf::range
             return acul::make_op_error(ACUL_OP_INVALID_SIZE);
         try
         {
+            if (_received == 0u && chunk.size) _encoded.reserve(static_cast<size_t>(range().size));
             if (chunk.size) _encoded.insert(_encoded.end(), chunk.data, chunk.data + chunk.size);
             _received += chunk.size;
             return acul::make_op_success();

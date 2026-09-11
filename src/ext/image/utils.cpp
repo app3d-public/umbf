@@ -42,7 +42,10 @@ namespace umbf
     void copy_pixels_to_area(const Image2D &src, Image2D &dst, const amal::irect &rect)
     {
         if (src.format != dst.format) throw acul::runtime_error("Image format mismatch");
-        if (rect.offset.x + rect.size.x > dst.width || rect.offset.y + rect.size.y > dst.height)
+        if (rect.offset.x < 0 || rect.offset.y < 0 || rect.size.x < 0 || rect.size.y < 0)
+            throw acul::runtime_error("Image area offset and size must be non-negative");
+        if (static_cast<i64>(rect.offset.x) + rect.size.x > dst.width ||
+            static_cast<i64>(rect.offset.y) + rect.size.y > dst.height)
             throw acul::runtime_error("Dst area is out of image bounds");
 
         const size_t bytes_per_pixel = dst.channels.size() * dst.format.bytes_per_channel;
