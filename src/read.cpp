@@ -183,8 +183,14 @@ namespace umbf::detail
             if (out) out->tag = view.tag;
             return out != nullptr;
         }
+        catch (const std::exception &e)
+        {
+            UMBF_LOG_ERROR("failed to deserialize UMBF block 0x%08x: %s", view.signature, e.what());
+            return false;
+        }
         catch (...)
         {
+            UMBF_LOG_ERROR("failed to deserialize UMBF block 0x%08x", view.signature);
             return false;
         }
     }

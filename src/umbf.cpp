@@ -333,16 +333,33 @@ namespace umbf
         return index;
     }
 
-    u32 add_block(WriteDescriptor &file, Block *block, SegmentWriter *segment)
+    bool add_block(WriteDescriptor &file, Block *block, SegmentWriter *segment)
     {
-        if (!block) return add_payload(file, 0u, nullptr, 0u, segment, 0u);
-        const u32 signature = block->signature();
-        assert(registry::resolver && "Registry is not initialized");
-        const auto *block_stream = registry::resolver->get_block_stream(signature);
-        if (!block_stream) throw acul::runtime_error("No UMBF writer for block");
-        acul::bin_stream stream;
-        block_stream->write(stream, block);
-        return add_payload(file, signature, stream.data(), stream.size(), segment, block->tag);
+        const u32 signature = block ? block->signature() : 0u;
+        try
+        {
+            if (!block)
+            {
+                add_payload(file, 0u, nullptr, 0u, segment, 0u);
+                return true;
+            }
+            assert(registry::resolver && "Registry is not initialized");
+            const auto *block_stream = registry::resolver->get_block_stream(signature);
+            if (!block_stream) throw acul::runtime_error("No UMBF writer for block");
+            acul::bin_stream stream;
+            block_stream->write(stream, block);
+            add_payload(file, signature, stream.data(), stream.size(), segment, block->tag);
+            return true;
+        }
+        catch (const std::exception &e)
+        {
+            UMBF_LOG_ERROR("failed to serialize UMBF block 0x%08x: %s", signature, e.what());
+        }
+        catch (...)
+        {
+            UMBF_LOG_ERROR("failed to serialize UMBF block 0x%08x", signature);
+        }
+        return false;
     }
 
     u32 add_file(WriteDescriptor &file, WriteDescriptor &nested, SegmentWriter *segment)
@@ -925,17 +942,10 @@ namespace umbf
         const auto *value_stream = registry::resolver ? registry::resolver->get_block_stream(signature) : nullptr;
         if (value_stream)
         {
-            try
-            {
-                ScopedStreamSize scope(stream, block_end);
-                value = acul::unique_ptr<Block>(value_stream->read(stream));
-                if (value && value->signature() != signature) value = nullptr;
-                if (value) value->tag = tag;
-            }
-            catch (...)
-            {
-                value = nullptr;
-            }
+            ScopedStreamSize scope(stream, block_end);
+            value = acul::unique_ptr<Block>(value_stream->read(stream));
+            if (value && value->signature() != signature) value = nullptr;
+            if (value) value->tag = tag;
         }
         stream.pos(block_end);
         return true;

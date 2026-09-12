@@ -435,7 +435,7 @@ namespace umbf
         return add_payload(file, sign_block::raw, data, size, segment, tag);
     }
 
-    UMBF_EXPORT u32 add_block(WriteDescriptor &file, Block *block, SegmentWriter *segment = nullptr);
+    UMBF_EXPORT bool add_block(WriteDescriptor &file, Block *block, SegmentWriter *segment = nullptr);
 } // namespace umbf
 
 namespace acul
