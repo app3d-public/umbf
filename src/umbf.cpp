@@ -848,9 +848,9 @@ namespace umbf
 
     void Registry::init(const acul::path &path)
     {
-        acul::vector<acul::string> files;
         UMBF_LOG_INFO("initializing registry: %s", path.str().c_str());
-        auto lr = acul::fs::list_files(path, files);
+        auto files = acul::fs::list_files(path.str());
+        const auto &lr = files.result();
         if (!lr.success())
             throw acul::runtime_error(
                 acul::format("Failed to list files. Error code: 0x%016" PRIx64, static_cast<u64>(lr)));
